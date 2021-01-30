@@ -1,0 +1,17 @@
+[package]
+name = "storage-poc"
+version = "0.1.0"
+authors = ["Matthieu M. <matthieum.147192@gmail.com>"]
+edition = "2018"
+description = "An exploration of Storage, instead of Allocators, for collections"
+repository = "https://github.com/matthieu-m/storage-poc"
+license = "MIT OR Apache-2.0"
+keywords = ["allocator", "collection", "experimental", "nightly", "storage"]
+categories = ["no-std"]
+
+[features]
+#   Activate usage of the alloc crate, which automatically implements the various storages for all allocators.
+alloc = []
+
+[dependencies]
+rfc2580 = "0.2.0"
