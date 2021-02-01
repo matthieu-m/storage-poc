@@ -1,6 +1,6 @@
 //! Proof-of-Concept implementation of a Box parameterized by a Storage.
 
-use core::{fmt::{self, Debug}, marker::{PhantomData, Unsize}, ops::{Deref, DerefMut}};
+use core::{fmt::{self, Debug}, marker::{PhantomData, Unsize}, ops::{CoerceUnsized, Deref, DerefMut}};
 
 use rfc2580::Pointee;
 
@@ -30,6 +30,15 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage<T>> RawBox<T, S> {
             Err(value) => Err((value, storage)),
         }
     }
+}
+
+impl<T, U, ST, SU> CoerceUnsized<RawBox<U, SU>> for RawBox<T, ST>
+    where
+        T: ?Sized + Pointee + Unsize<U>,
+        U: ?Sized + Pointee,
+        ST: SingleElementStorage<T> + CoerceUnsized<SU>,
+        SU: SingleElementStorage<U>,
+{
 }
 
 impl<T: ?Sized + Pointee, S: SingleElementStorage<T>> Deref for RawBox<T, S> {
@@ -297,6 +306,32 @@ fn slice_failure() {
     RawBox::new_unsize([1u8, 2, 3], storage).unwrap_err();
 }
 
+/*
+
+FIXME: Fix CoerceUnsized?
+
+#[test]
+fn slice_coerce() {
+    let allocator = SpyAllocator::default();
+
+    let storage = SingleElement::<[u8; 3], _>::new(allocator.clone());
+    let boxed = RawBox::new([1u8, 2, 3], storage).unwrap();
+
+    assert_eq!([1u8, 2, 3], *boxed);
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(0, allocator.deallocated());
+
+    let coerced : RawBox<[u8], _> = boxed;
+
+    assert_eq!([1u8, 2, 3], *coerced);
+
+    drop(coerced);
+
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(1, allocator.deallocated());
+}
+*/
+
 #[test]
 fn trait_allocated() {
     let allocator = SpyAllocator::default();
@@ -319,5 +354,31 @@ fn trait_failure() {
     let storage = SingleElement::<dyn Debug, _>::new(NonAllocator);
     RawBox::new_unsize([1u8, 2, 3], storage).unwrap_err();
 }
+
+/*
+
+FIXME: Fix CoerceUnsized?
+
+#[test]
+fn trait_coerce() {
+    let allocator = SpyAllocator::default();
+
+    let storage = SingleElement::<[u8; 3], _>::new(allocator.clone());
+    let boxed = RawBox::new([1u8, 2, 3], storage).unwrap();
+
+    assert_eq!([1u8, 2, 3], *boxed);
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(0, allocator.deallocated());
+
+    let coerced : RawBox<dyn Debug, _> = boxed;
+
+    assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", coerced));
+
+    drop(coerced);
+
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(1, allocator.deallocated());
+}
+*/
 
 }

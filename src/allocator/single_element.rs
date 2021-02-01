@@ -1,6 +1,6 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::Layout, fmt::{self, Debug}, marker::{PhantomData, Unsize}, mem, ptr::{self, NonNull}};
+use core::{alloc::Layout, fmt::{self, Debug}, marker::{PhantomData, Unsize}, mem, ops::CoerceUnsized, ptr::{self, NonNull}};
 use alloc::alloc::{Allocator, Global};
 
 use crate::traits::{Element, SingleElementStorage};
@@ -55,6 +55,12 @@ impl<T: ?Sized, A: Allocator> SingleElementStorage<T> for SingleElement<T, A> {
     }
 
     unsafe fn get(&self) -> Element<T> { self.pointer }
+}
+
+impl<T: ?Sized, U: ?Sized, A: Allocator> CoerceUnsized<SingleElement<U, A>> for SingleElement<T, A>
+    where
+        T: Unsize<U>,
+{
 }
 
 impl<T: ?Sized, A: Allocator + Default> Default for SingleElement<T, A> {
@@ -177,6 +183,26 @@ fn create_unsize_allocated_success() {
 fn create_unsize_failure() {
     let mut storage = SingleElement::<[u8], _>::new(NonAllocator);
     storage.create_unsize([1u8, 2, 3]).unwrap_err();
+}
+
+#[test]
+fn coerce_unsized() {
+    let allocator = SpyAllocator::default();
+
+    let mut storage = SingleElement::<[u8; 2], _>::new(allocator.clone());
+    storage.create([1u8, 2]).unwrap();
+
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(0, allocator.deallocated());
+
+    let mut storage : SingleElement<[u8], _> = storage;
+
+    assert_eq!([1, 2], unsafe { storage.get().as_ref() });
+
+    unsafe { storage.destroy() };
+
+    assert_eq!(1, allocator.allocated());
+    assert_eq!(1, allocator.deallocated());
 }
 
 }
