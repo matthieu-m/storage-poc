@@ -49,18 +49,6 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         Ok(handle)
     }
 
-    unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
-        //  Safety:
-        //  -   `handle` is assumed to be valid.
-        let element = self.get(handle);
-
-        //  Safety:
-        //  -   `element` is valid.
-        ptr::drop_in_place(element.as_ptr());
-
-        self.forget(handle);
-    }
-
     unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be within range, as part of being valid.

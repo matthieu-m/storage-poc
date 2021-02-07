@@ -1,6 +1,6 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::Layout, fmt::{self, Debug}, marker::{PhantomData, Unsize}, mem::{self, MaybeUninit}, ptr::{self, NonNull}};
+use core::{alloc::Layout, fmt::{self, Debug}, marker::Unsize, mem::{self, MaybeUninit}, ptr::{self, NonNull}};
 use alloc::alloc::{Allocator, Global};
 
 use rfc2580::{self, Pointee};
@@ -10,54 +10,60 @@ use crate::{traits::{Element, SingleElementStorage}, utils};
 /// Generic inline SingleElementStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
-pub struct SingleElement<T: ?Sized + Pointee, S, A: Allocator = Global> {
-    inner: Inner<T, S>,
+pub struct SingleElement<S, A: Allocator = Global> {
+    inner: Inner<S>,
     allocator: A,
-    _marker: PhantomData<T>,
 }
 
-impl<T: ?Sized, S, A: Allocator> SingleElement<T, S, A> {
+impl<S, A: Allocator> SingleElement<S, A> {
     /// Attempts to create an instance of SingleElement.
     pub fn new(allocator: A) -> Self {
         let inner = Inner::default();
-        Self { inner, allocator, _marker: PhantomData }
+        Self { inner, allocator }
     }
 }
 
-impl<T: ?Sized + Pointee, S, A: Allocator> SingleElementStorage<T> for SingleElement<T, S, A> {
-    fn create(&mut self, value: T) -> Result<Element<T>, T>
-        where
-            T: Sized,
-    {
+impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
+    type Handle<T: ?Sized + Pointee> = SingleElementHandle<T>;
+
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
         let meta = rfc2580::into_raw_parts(&value as *const T).0;
 
-        //  Safety:
-        //  -   The layout of `S` has been validated as part of `new`.
-        unsafe { self.write(meta, value) }
+        if utils::validate_layout::<T, S>().is_ok() {
+            let mut storage = MaybeUninit::<S>::uninit();
+
+            //  Safety:
+            //  -   `storage.as_mut_ptr()` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(storage.as_mut_ptr() as *mut T, value) };
+
+            self.inner = Inner::Inline(storage);
+
+            Ok(SingleElementHandle(meta))
+        } else if let Ok(mut storage) = self.allocator.allocate(Layout::for_value(&value)) {
+            let pointer = unsafe { storage.as_mut() }.as_mut_ptr() as *mut T;
+
+            //  Safety:
+            //  -   `pointer` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(pointer, value) };
+
+            //  Safety:
+            //  -   `pointer` is not null.
+            let pointer = unsafe { NonNull::new_unchecked(pointer) };
+
+            self.inner = Inner::Allocated(pointer.cast());
+
+            Ok(SingleElementHandle(meta))
+        } else {
+            Err(value)
+        }
     }
 
-    fn create_unsize<V: Unsize<T>>(&mut self, value: V) -> Result<Element<T>, V> {
-        let meta = rfc2580::into_raw_parts(&value as &T as *const T).0;
+    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+        let element = self.get(handle);
 
         //  Safety:
-        //  -   The layout of `S` has been validated, just above.
-        unsafe { self.write(meta, value) }
-    }
-
-    unsafe fn destroy(&mut self) {
-        //  Safety:
-        //  -   The storage is assumed to be initialized.
-        let element = self.get().as_ptr();
-
-        //  Safety:
-        //  -   `element` points to a valid value.
-        let layout = Layout::for_value(&*element);
-
-        //  Safety:
-        //  -   `element` is exclusively accessible.
-        //  -   `element` is suitably aligned.
-        //  -   `element` points to a valid value.
-        ptr::drop_in_place(element);
+        //  -   `handle` is valid, and points to valid meta-data, if not valid data.
+        let layout = Layout::for_value_raw(element.as_ptr() as *const T);
 
         if let Inner::Allocated(pointer) = mem::replace(&mut self.inner, Inner::default()) {
             //  Safety:
@@ -67,90 +73,65 @@ impl<T: ?Sized + Pointee, S, A: Allocator> SingleElementStorage<T> for SingleEle
         }
     }
 
-    unsafe fn get(&self) -> Element<T> {
-        match self.inner {
-            Inner::Inline(meta, ref data) => {
-                //  Safety:
-                //  -   `self.meta` and `self.data` are assumed to be suitably initialized.
-                let meta = *meta.as_ptr();
-                let data = data.as_ptr() as *const u8;
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
+        let data = match self.inner {
+            Inner::Inline(ref data) => data.as_ptr() as *const u8,
+            Inner::Allocated(pointer) => pointer.as_ptr() as *const u8,
+        };
 
-                let pointer = rfc2580::from_raw_parts(meta, data);
+        let pointer = rfc2580::from_raw_parts(handle.0, data);
 
-                //  Safety:
-                //  -   `pointer` is not null, as `data` is not null.
-                NonNull::new_unchecked(pointer as *mut T)
-            },
-            Inner::Allocated(pointer) => pointer,
-        }
+        //  Safety:
+        //  -   `pointer` is not null, as `data` is not null.
+        NonNull::new_unchecked(pointer as *mut T)
+    }
+
+    unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
+        //  Safety:
+        //  -   `handle` is assumed to be valid.
+        let element = self.get(handle);
+
+        let meta = rfc2580::into_raw_parts(element.as_ptr() as *const T as *const U).0;
+
+        SingleElementHandle(meta)
     }
 }
 
-impl<T: ?Sized, S, A: Allocator + Default> Default for SingleElement<T, S, A> {
-    fn default() -> Self {
-        let allocator = A::default();
-        Self::new(allocator)
-    }
+impl<S, A: Allocator + Default> Default for SingleElement<S, A> {
+    fn default() -> Self { Self::new(A::default()) }
 }
 
-impl<T: ?Sized, S, A: Allocator> Debug for SingleElement<T, S, A> {
+impl<S, A: Allocator> Debug for SingleElement<S, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "SingleElement")
+    }
+}
+
+/// SingleElementHandle for SingleElement.
+pub struct SingleElementHandle<T: ?Sized + Pointee>(T::MetaData);
+
+impl<T: ?Sized + Pointee> Clone for SingleElementHandle<T> {
+    fn clone(&self) -> Self { *self }
+}
+
+impl<T: ?Sized + Pointee> Copy for SingleElementHandle<T> {}
+
+impl<T: ?Sized + Pointee> Debug for SingleElementHandle<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "SingleElementHandle")
     }
 }
 
 //
 //  Implementation
 //
-enum Inner<T: ?Sized + Pointee, S> {
-    Inline(MaybeUninit<T::MetaData>, MaybeUninit<S>),
-    Allocated(NonNull<T>)
+enum Inner<S> {
+    Inline(MaybeUninit<S>),
+    Allocated(NonNull<u8>)
 }
 
-impl<T: ?Sized, S> Default for Inner<T, S> {
-    fn default() -> Self { Inner::Inline(MaybeUninit::uninit(), MaybeUninit::uninit()) }
-}
-
-impl<T: ?Sized + Pointee, S, A: Allocator> SingleElement<T, S, A> {
-    //  Writes an instance of `V`, with the appropriate meta-data for `T`, in the storage.
-    //
-    //  Assumes that the storage is unoccupied, otherwise the current memory is overwritten, which may lead to resource
-    //  leaks.
-    //
-    //  #   Safety
-    //
-    //  Assumes that the layout of storage has been validated to fit `V`.
-    unsafe fn write<V>(&mut self, meta: T::MetaData, data: V) -> Result<Element<T>, V> {
-        if let Ok(_) = utils::validate_layout::<V, S>() {
-            let meta = MaybeUninit::new(meta);
-            let mut storage = MaybeUninit::<S>::uninit();
-
-            //  Safety:
-            //  -   `storage.as_mut_ptr()` points to an appropriate (layout-wise) memory area.
-            ptr::write(storage.as_mut_ptr() as *mut V, data);
-
-            self.inner = Inner::Inline(meta, storage);
-
-            Ok(self.get())
-        } else if let Ok(mut storage) = self.allocator.allocate(Layout::for_value(&data)) {
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            ptr::write(storage.as_mut().as_mut_ptr() as *mut V, data); 
-
-            //  Safety:
-            let pointer = rfc2580::from_raw_parts(meta, storage.as_ref().as_ptr());
-            
-            //  Safety:
-            //  -   `pointer` is not null.
-            let pointer = NonNull::new_unchecked(pointer as *mut T);
-
-            self.inner = Inner::Allocated(pointer);
-
-            Ok(pointer)
-        } else {
-            Err(data)
-        }
-    }
+impl< S> Default for Inner<S> {
+    fn default() -> Self { Inner::Inline(MaybeUninit::uninit()) }
 }
 
 #[cfg(test)]
@@ -162,17 +143,17 @@ use super::*;
 
 #[test]
 fn default_unconditional_success() {
-    SingleElement::<u8, u8>::default();
+    SingleElement::<u8>::default();
 }
 
 #[test]
 fn new_unconditional_success() {
-    SingleElement::<u8, u8, _>::new(NonAllocator);
+    SingleElement::<u8, _>::new(NonAllocator);
 }
 
 #[test]
 fn create_inline_success() {
-    let mut storage = SingleElement::<u8, [u8; 2], _>::new(NonAllocator);
+    let mut storage = SingleElement::<[u8; 2], _>::new(NonAllocator);
     storage.create(1u8).unwrap();
 }
 
@@ -180,13 +161,13 @@ fn create_inline_success() {
 fn create_allocated_success() {
     let allocator = SpyAllocator::default();
 
-    let mut storage = SingleElement::<u32, u8, _>::new(allocator.clone());
-    storage.create(1u32).unwrap();
+    let mut storage = SingleElement::<u8, _>::new(allocator.clone());
+    let handle = storage.create(1u32).unwrap();
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.destroy() };
+    unsafe { storage.destroy(handle) };
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(1, allocator.deallocated());
@@ -194,48 +175,38 @@ fn create_allocated_success() {
 
 #[test]
 fn create_insufficient_size() {
-    let mut storage = SingleElement::<[u8; 2], u8, _>::new(NonAllocator);
+    let mut storage = SingleElement::<u8, _>::new(NonAllocator);
     storage.create([1u8, 2]).unwrap_err();
 }
 
 #[test]
 fn create_insufficient_alignment() {
-    let mut storage = SingleElement::<u32, [u8; 32], _>::new(NonAllocator);
+    let mut storage = SingleElement::<[u8; 32], _>::new(NonAllocator);
     storage.create(1u32).unwrap_err();
 }
 
 #[test]
 fn create_unsize_inline_success() {
-    let mut storage = SingleElement::<[u8], u32, _>::new(NonAllocator);
-    storage.create_unsize([1u8, 2, 3]).unwrap();
+    let mut storage = SingleElement::<u32, _>::new(NonAllocator);
+    storage.create([1u8, 2, 3]).unwrap();
 }
 
 #[test]
 fn create_unsize_allocated_success() {
     let allocator = SpyAllocator::default();
 
-    let mut storage = SingleElement::<[u32], u8, _>::new(allocator.clone());
-    storage.create_unsize([1u32, 2, 3]).unwrap();
+    let mut storage = SingleElement::<u8, _>::new(allocator.clone());
+    let handle = storage.create([1u32, 2, 3]).unwrap();
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.destroy() };
+    let handle = unsafe { storage.coerce::<[u32], _>(handle) };
+
+    unsafe { storage.destroy(handle) };
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(1, allocator.deallocated());
-}
-
-#[test]
-fn create_unsize_insufficient_size() {
-    let mut storage = SingleElement::<[u8], u8, _>::new(NonAllocator);
-    storage.create_unsize([1u8, 2, 3]).unwrap_err();
-}
-
-#[test]
-fn create_unsize_insufficient_alignment() {
-    let mut storage = SingleElement::<[u32], [u8; 32], _>::new(NonAllocator);
-    storage.create_unsize([1u32]).unwrap_err();
 }
 
 }

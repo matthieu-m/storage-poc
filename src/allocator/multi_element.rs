@@ -42,17 +42,6 @@ impl<A: Allocator> MultiElementStorage for MultiElement<A> {
         }
     }
 
-    unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
-
-        //  Safety:
-        //  -   `handle` is valid and points to a valid element.
-        ptr::drop_in_place(handle.as_ptr());
-
-        //  Safety:
-        //  -   `handle` is valid, though its element is not.
-        self.forget(handle);
-    }
-
     unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is valid, and points to valid meta-data, if not valid data.
