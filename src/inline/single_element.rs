@@ -1,6 +1,6 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{fmt::{self, Debug}, marker::{PhantomData, Unsize}, mem::{self, MaybeUninit}, ptr::{self, NonNull}};
+use core::{fmt::{self, Debug}, marker::{PhantomData, Unsize}, mem::MaybeUninit, ptr::{self, NonNull}};
 
 use rfc2580::{self, Pointee};
 
@@ -15,31 +15,14 @@ pub struct SingleElement<T: ?Sized + Pointee, S> {
     _marker: PhantomData<T>,
 }
 
-impl<T, S> SingleElement<T, S> {
+impl<T: ?Sized, S> SingleElement<T, S> {
     /// Attempts to create an instance of SingleElement.
     ///
-    /// Fails if `Layout<T>` cannot be accomidated by `Layout<Storage>`.
+    /// Fails if `Layout<T>` cannot be accommodated by `Layout<Storage>`.
     pub fn new() -> Option<Self> {
-        if let Ok(_) = utils::validate_layout::<T, S>() {
-            //  Safety:
-            //  -   `T` was validated to fit within `S`.
-            Some(unsafe { Self::default() })
-        } else {
-            None
-        }
-    }
-}
-
-impl<T: ?Sized, S> SingleElement<T, S> {
-    /// Creates an instance for dynamically sized type.
-    ///
-    /// Validation of size and alignment are delayed to the initialization of the storage.
-    pub fn new_unsize() -> Self {
-        assert!(mem::size_of::<*const T>() > mem::size_of::<*const u8>());
-
         //  Safety:
-        //  -   `create_unsize` which will verify the suitability of `S`'s layout.
-        unsafe { Self::default() }
+        //  -   `T` was validated to fit within `S`.
+        utils::validate_layout::<T, S>().ok().map(|_| unsafe { Self::default() })
     }
 }
 
@@ -164,8 +147,8 @@ fn new_insufficient_alignment() {
 
 #[test]
 fn new_unsize_unconditional_success() {
-    SingleElement::<[u32], u8>::new_unsize();
-    SingleElement::<dyn Debug, u8>::new_unsize();
+    SingleElement::<[u32], u8>::new().unwrap();
+    SingleElement::<dyn Debug, u8>::new().unwrap();
 }
 
 #[test]
@@ -176,19 +159,19 @@ fn create_success() {
 
 #[test]
 fn create_unsize_success() {
-    let mut storage = SingleElement::<[u8], u32>::new_unsize();
+    let mut storage = SingleElement::<[u8], u32>::new().unwrap();
     storage.create_unsize([1u8, 2, 3]).unwrap();
 }
 
 #[test]
 fn create_unsize_insufficient_size() {
-    let mut storage = SingleElement::<[u8], u8>::new_unsize();
+    let mut storage = SingleElement::<[u8], u8>::new().unwrap();
     storage.create_unsize([1u8, 2, 3]).unwrap_err();
 }
 
 #[test]
 fn create_unsize_insufficient_alignment() {
-    let mut storage = SingleElement::<[u32], [u8; 32]>::new_unsize();
+    let mut storage = SingleElement::<[u32], [u8; 32]>::new().unwrap();
     storage.create_unsize([1u32]).unwrap_err();
 }
 

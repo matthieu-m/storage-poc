@@ -103,7 +103,7 @@ fn sized_storage() {
 
 #[test]
 fn slice_storage() {
-    let storage = SingleElement::<[u8], [u8; 4]>::new_unsize();
+    let storage = SingleElement::<[u8], [u8; 4]>::new().unwrap();
     let mut boxed = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
 
     assert_eq!([1u8, 2, 3], &*boxed);
@@ -115,7 +115,7 @@ fn slice_storage() {
 
 #[test]
 fn trait_storage() {
-    let storage = SingleElement::<dyn Debug, [u8; 4]>::new_unsize();
+    let storage = SingleElement::<dyn Debug, [u8; 4]>::new().unwrap();
     let boxed = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", boxed));

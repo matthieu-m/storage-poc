@@ -1,12 +1,22 @@
 #![cfg_attr(not(test), no_std)]
 
+//  Language Features
 #![feature(coerce_unsized)]
-#![feature(option_unwrap_none)]
+#![feature(generic_associated_types)]
 #![feature(set_ptr_value)]
+#![feature(specialization)]
 #![feature(unsize)]
+#![feature(untagged_unions)]
+
+//  Library Features
+#![feature(layout_for_ptr)]
+#![feature(maybe_uninit_uninit_array)]
+#![feature(option_unwrap_none)]
 
 #![cfg_attr(feature = "alloc", feature(allocator_api))]
 
+//  Lints
+#![allow(incomplete_features)]
 #![deny(missing_docs)]
 
 //! TODO
