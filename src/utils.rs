@@ -21,8 +21,8 @@ impl<T: ?Sized> Default for PhantomInvariant<T> {
 /// Validates that the layout of `storage` is sufficient to accomodate an instance of `T`.
 ///
 /// Return `Ok` on success, and `Err` on failure.
-pub fn validate_layout<T: ?Sized + LayoutOf, Storage>() -> Result<(), ()> {
-    validate_layout_for::<Storage>(T::layout_of())
+pub fn validate_layout<T, Storage>() -> Result<(), ()> {
+    validate_layout_for::<Storage>(Layout::new::<T>())
 }
 
 /// Validates that the layout of `storage` is sufficient for `layout`.
@@ -78,21 +78,3 @@ unsafe impl Allocator for SpyAllocator {
 }
 
 } // mod test
-
-//
-//  Implementation
-//
-
-#[doc(hidden)]
-pub trait LayoutOf {
-    #[doc(hidden)]
-    fn layout_of() -> Layout;
-}
-
-impl<T: ?Sized> LayoutOf for T {
-    default fn layout_of() -> Layout { Layout::new::<u8>() }
-}
-
-impl<T> LayoutOf for T {
-    fn layout_of() -> Layout { Layout::new::<T>() }
-}

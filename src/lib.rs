@@ -3,8 +3,6 @@
 //  Language Features
 #![feature(coerce_unsized)]
 #![feature(generic_associated_types)]
-#![feature(set_ptr_value)]
-#![feature(specialization)]
 #![feature(unsize)]
 #![feature(untagged_unions)]
 
