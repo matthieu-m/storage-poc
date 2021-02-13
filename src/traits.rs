@@ -4,12 +4,6 @@ use core::{marker::Unsize, ptr::{self, NonNull}};
 
 use rfc2580::Pointee;
 
-/// A pointer to memory suitable for T.
-pub type Element<T> = NonNull<T>;
-
-/// A pointer to memory suitable for the indicated number of Ts.
-pub type Range<T> = (NonNull<T>, usize);
-
 /// A single element storage.
 ///
 /// Examples of use include: Box.
@@ -53,7 +47,7 @@ pub trait SingleElementStorage {
     ///
     /// -   Assumes that `handle` is valid.
     /// -   The pointer is only valid as long as the storage is not moved.
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T>;
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T>;
 
     /// Coerces the type of the handle.
     ///
@@ -113,7 +107,7 @@ pub trait MultiElementStorage {
     ///
     /// -   Assumes that `handle` is valid, and was issued by this instance.
     /// -   The pointer is only valid as long as the storage is not moved.
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T>;
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T>;
 
     /// Coerces the type of the handle.
     ///
@@ -131,7 +125,7 @@ pub trait SingleRangeStorage<T> {
     /// Gets a pointer to the storage to the range of elements.
     ///
     /// The pointer is only valid as long as the storage is not moved, or the range is not resized.
-    fn get(&self) -> Range<T>;
+    fn get(&self) -> NonNull<[T]>;
 }
 
 /// A resizable single range storage.
@@ -139,10 +133,10 @@ pub trait SingleRangeStorage<T> {
 /// Examples of use include: Vec, VecDeque.
 pub trait SingleResizableRangeStorage<T> : SingleRangeStorage<T> {
     /// Attempts to grow the internal storage to accomodate at least `new_capacity` elements in total.
-    fn try_grow<F>(&mut self, new_capacity: usize) -> Option<Range<T>>;
+    fn try_grow<F>(&mut self, new_capacity: usize) -> Option<NonNull<[T]>>;
 
     /// Attempts to shrink the internal storage to accomodate at least `new_capacity` elements in total.
-    fn try_shrink<F>(&mut self, new_capacity: usize) -> Option<Range<T>>;
+    fn try_shrink<F>(&mut self, new_capacity: usize) -> Option<NonNull<[T]>>;
 }
 
 //  Are MultiRangeStorage<T> and MultiResizableRangeStorage<T> necessary?

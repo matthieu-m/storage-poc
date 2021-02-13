@@ -5,7 +5,7 @@ use alloc::alloc::{Allocator, Global};
 
 use rfc2580::Pointee;
 
-use crate::traits::{Element, SingleElementStorage};
+use crate::traits::SingleElementStorage;
 
 /// Generic inline SingleElementStorage.
 ///
@@ -51,7 +51,7 @@ impl<A: Allocator> SingleElementStorage for SingleElement<A> {
         self.allocator.deallocate(handle.cast(), layout);
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> { handle }
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> { handle }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         handle

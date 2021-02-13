@@ -4,7 +4,7 @@ use core::{fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{self, Non
 
 use rfc2580::{self, Pointee};
 
-use crate::{traits::{Element, MultiElementStorage}, utils};
+use crate::{traits::MultiElementStorage, utils};
 
 /// Generic inline MultiElementStorage.
 ///
@@ -59,7 +59,7 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         self.next = handle.0;
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         //  Safety:
         //  -   `handle` is assumed to be within range.
         let slot = self.data.get_unchecked(handle.0);

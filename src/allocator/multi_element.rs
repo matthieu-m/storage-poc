@@ -5,7 +5,7 @@ use alloc::alloc::{Allocator, Global};
 
 use rfc2580::Pointee;
 
-use crate::traits::{Element, MultiElementStorage};
+use crate::traits::MultiElementStorage;
 
 /// Generic allocator-based MultiElementStorage.
 ///
@@ -53,7 +53,7 @@ impl<A: Allocator> MultiElementStorage for MultiElement<A> {
         self.allocator.deallocate(handle.cast(), layout);
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         handle
     }
 

@@ -4,7 +4,7 @@ use core::{fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{self, Non
 
 use rfc2580::{self, Pointee};
 
-use crate::{traits::{Element, SingleElementStorage}, utils};
+use crate::{traits::SingleElementStorage, utils};
 
 /// Generic inline SingleElementStorage.
 ///
@@ -39,7 +39,7 @@ impl<S> SingleElementStorage for SingleElement<S> {
 
     unsafe fn forget<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         let pointer: NonNull<u8> = NonNull::from(&self.data).cast();
 
         rfc2580::from_non_null_parts(handle.0, pointer)

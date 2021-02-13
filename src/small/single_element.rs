@@ -5,7 +5,7 @@ use alloc::alloc::{Allocator, Global};
 
 use rfc2580::{self, Pointee};
 
-use crate::{traits::{Element, SingleElementStorage}, utils};
+use crate::{traits::SingleElementStorage, utils};
 
 /// Generic inline SingleElementStorage.
 ///
@@ -73,7 +73,7 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
         }
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
+    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         let pointer: NonNull<u8> = match self.inner {
             Inner::Inline(ref data) => NonNull::from(data).cast(),
             Inner::Allocated(pointer) => pointer,
