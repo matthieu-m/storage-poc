@@ -27,7 +27,7 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<T>;
 
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        let meta = rfc2580::into_raw_parts(&value as *const T).0;
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
 
         if utils::validate_layout::<T, S>().is_ok() {
             let mut storage = MaybeUninit::<S>::uninit();
@@ -74,16 +74,12 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
     }
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
-        let data = match self.inner {
-            Inner::Inline(ref data) => data.as_ptr() as *const u8,
-            Inner::Allocated(pointer) => pointer.as_ptr() as *const u8,
+        let pointer: NonNull<u8> = match self.inner {
+            Inner::Inline(ref data) => NonNull::from(data).cast(),
+            Inner::Allocated(pointer) => pointer,
         };
 
-        let pointer = rfc2580::from_raw_parts(handle.0, data);
-
-        //  Safety:
-        //  -   `pointer` is not null, as `data` is not null.
-        NonNull::new_unchecked(pointer as *mut T)
+        rfc2580::from_non_null_parts(handle.0, pointer)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
@@ -91,7 +87,7 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
         //  -   `handle` is assumed to be valid.
         let element = self.get(handle);
 
-        let meta = rfc2580::into_raw_parts(element.as_ptr() as *const T as *const U).0;
+        let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
 
         SingleElementHandle(meta)
     }

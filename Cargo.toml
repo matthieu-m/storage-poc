@@ -14,4 +14,4 @@ categories = ["no-std"]
 alloc = []
 
 [dependencies]
-rfc2580 = "0.2.0"
+rfc2580 = "0.3.0"

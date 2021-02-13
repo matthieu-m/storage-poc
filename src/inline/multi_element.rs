@@ -29,7 +29,7 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
             return Err(value);
         }
 
-        let meta = rfc2580::into_raw_parts(&value as *const T).0;
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
 
         //  Pop slot from linked list.
         let handle = MultiElementHandle(self.next, meta);
@@ -64,15 +64,11 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         //  -   `handle` is assumed to be within range.
         let slot = self.data.get_unchecked(handle.0);
     
+        let pointer: NonNull<u8> = NonNull::from(&slot.data).cast();
+
         //  Safety:
         //  -   `handle` is assumed to point to a valid element.
-        let pointer = slot.data.as_ptr() as *const u8;
-
-        let element = rfc2580::from_raw_parts(handle.1, pointer);
-
-        //  Safety:
-        //  -   `element` is not null.
-        NonNull::new_unchecked(element as *mut _)
+        rfc2580::from_non_null_parts(handle.1, pointer)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
@@ -80,7 +76,7 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         //  -   `handle` is assumed to point to a valid element.
         let element = self.get(handle);
 
-        let meta = rfc2580::into_raw_parts(element.as_ptr() as *const T as *const U).0;
+        let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
 
         MultiElementHandle(handle.0, meta)
     }

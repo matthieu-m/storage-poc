@@ -26,7 +26,7 @@ impl<S> SingleElementStorage for SingleElement<S> {
             return Err(value);
         }
 
-        let meta = rfc2580::into_raw_parts(&value as *const T).0;
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
 
         //  Safety:
         //  -   `self.data` points to an appropriate (layout-wise) memory area.
@@ -40,13 +40,9 @@ impl<S> SingleElementStorage for SingleElement<S> {
     unsafe fn forget<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> Element<T> {
-        let data = self.data.as_ptr() as *const u8;
+        let pointer: NonNull<u8> = NonNull::from(&self.data).cast();
 
-        let pointer = rfc2580::from_raw_parts(handle.0, data);
-
-        //  Safety:
-        //  -   `pointer` is not null, as `data` is not null.
-        NonNull::new_unchecked(pointer as *mut T)
+        rfc2580::from_non_null_parts(handle.0, pointer)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
@@ -54,7 +50,7 @@ impl<S> SingleElementStorage for SingleElement<S> {
         //  -   `handle` is assumed to be valid.
         let element = self.get(handle);
 
-        let meta = rfc2580::into_raw_parts(element.as_ptr() as *const T as *const U).0;
+        let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
 
         SingleElementHandle(meta)
     }
