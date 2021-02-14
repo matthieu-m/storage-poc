@@ -58,7 +58,7 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
         }
     }
 
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         let element = self.get(handle);
 
         //  Safety:

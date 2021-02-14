@@ -1,6 +1,6 @@
 //! The various storages available.
 
-use core::{marker::Unsize, ptr::{self, NonNull}};
+use core::{alloc::AllocError, convert::TryInto, marker::Unsize, mem::MaybeUninit, ptr::{self, NonNull}};
 
 use rfc2580::Pointee;
 
@@ -20,7 +20,9 @@ pub trait SingleElementStorage {
     ///
     /// #   Safety
     ///
-    /// -   Assumes that there is a value stored.
+    /// -   Assumes `handle` is valid, and the meta-data of the value it represents is valid.
+    /// -   This invalidates the value behind the `handle`, hence `get` or `coerce` are no longer safe to be called on
+    ///     either it or any of its copies.
     unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be valid.
@@ -30,7 +32,7 @@ pub trait SingleElementStorage {
         //  -   `element` is valid.
         ptr::drop_in_place(element.as_ptr());
 
-        self.forget(handle);
+        self.release(handle);
     }
 
     /// Deallocate the memory without destroying the value within the storage.
@@ -39,7 +41,7 @@ pub trait SingleElementStorage {
     ///
     /// -   Assumes `handle` is valid, and the meta-data of the value it represents is valid.
     /// -   This invalidates the `handle`, and all of its copies.
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
 
     /// Gets a pointer to the storage to the element.
     ///
@@ -53,8 +55,7 @@ pub trait SingleElementStorage {
     ///
     /// #   Safety
     ///
-    /// -   Assumes that `handle` is valid.
-    /// -   The pointer is only valid as long as the storage is not moved.
+    /// -   Assumes that `handle` is valid, and was issued by this instance.
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U>;
 }
 
@@ -71,7 +72,7 @@ pub trait MultiElementStorage {
     ///
     /// #   Safety
     ///
-    /// -   The Element obtained is only valid until `self` is moved, or `self.destroy` is invoked on its handle.
+    /// -   The Handle obtained is only valid until `self.destroy` or `self.release` is invoked on it, or one of its copies.
     /// -   This may relocate all existing elements, which should be re-acquired through their handles.
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>;
 
@@ -80,7 +81,8 @@ pub trait MultiElementStorage {
     /// #   Safety
     ///
     /// -   Assumes `handle` is valid, and the meta-data of the value it represents is valid.
-    /// -   This invalidates the `handle`, and all of its copies.
+    /// -   This invalidates the value behind the `handle`, hence `get` or `coerce` are no longer safe to be called on
+    ///     either it or any of its copies.
     unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be valid.
@@ -90,7 +92,7 @@ pub trait MultiElementStorage {
         //  -   `element` is valid.
         ptr::drop_in_place(element.as_ptr());
 
-        self.forget(handle);
+        self.release(handle);
     }
 
     /// Deallocate the memory of the element associated to `handle`, without invoking its destructor.
@@ -99,7 +101,7 @@ pub trait MultiElementStorage {
     ///
     /// -   Assumes `handles` points to an allocated memory slot, makes no assumption about whether its value is valid.
     /// -   This invalidates the `handle`, and all of its copies.
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
 
     /// Returns the Element associated to this `handle`.
     ///
@@ -114,29 +116,109 @@ pub trait MultiElementStorage {
     /// #   Safety
     ///
     /// -   Assumes that `handle` is valid, and was issued by this instance.
-    /// -   The pointer is only valid as long as the storage is not moved.
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U>;
+}
+
+/// Capacity type for range storage.
+pub trait Capacity : Sized + Clone + Copy {
+    /// The maximum possible value of this type.
+    fn max() -> Self;
+
+    /// Create from usize.
+    fn from_usize(capacity: usize) -> Option<Self>;
+
+    /// Convert back to usize.
+    fn into_usize(self) -> usize;
 }
 
 /// A single range storage.
 ///
 /// Examples of use include: Vec, VecDeque.
-pub trait SingleRangeStorage<T> {
+pub trait SingleRangeStorage {
+    /// The Handle used to obtain the range.
+    type Handle<T> : Clone + Copy;
+
+    /// The Capacity type used by the storage.
+    ///
+    /// The collection may which to use it for related values to keep them as compact as possible.
+    type Capacity : Capacity;
+
+    /// Indicates the maximum capacity possibly available for an element of type `T`.
+    fn maximum_capacity<T>(&self) -> Self::Capacity;
+
+    /// Allocates memory for a new `Handle`, large enough to at least accomodate the required `capacity`.
+    ///
+    /// Does not `release` the current handles, nor drop their content. It merely invalidates them.
+    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
+
+    /// Deallocates the memory of the range associated to `handle`, without invoking any destructor.
+    ///
+    /// #   Safety
+    ///
+    /// -   Assumes `handles` points to an allocated memory slot, makes no assumption about whether its value is valid.
+    /// -   This invalidates `handle`, and all of its copies.
+    unsafe fn release<T>(&mut self, handle: Self::Handle<T>);
+
     /// Gets a pointer to the storage to the range of elements.
     ///
     /// The pointer is only valid as long as the storage is not moved, or the range is not resized.
-    fn get(&self) -> NonNull<[T]>;
-}
+    ///
+    /// #   Safety
+    ///
+    /// -   Assumes that `handle` is valid, and was issued by this instance.
+    /// -   The pointer is only valid as long as the storage is not moved.
+    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]>;
 
-/// A resizable single range storage.
-///
-/// Examples of use include: Vec, VecDeque.
-pub trait SingleResizableRangeStorage<T> : SingleRangeStorage<T> {
     /// Attempts to grow the internal storage to accomodate at least `new_capacity` elements in total.
-    fn try_grow<F>(&mut self, new_capacity: usize) -> Option<NonNull<[T]>>;
+    ///
+    /// If the attempt succeeds, a new handle is returned and `handle` is invalidated.
+    unsafe fn try_grow<T>(&mut self, _handle: Self::Handle<T>, _new_capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+        Err(AllocError)
+    }
 
     /// Attempts to shrink the internal storage to accomodate at least `new_capacity` elements in total.
-    fn try_shrink<F>(&mut self, new_capacity: usize) -> Option<NonNull<[T]>>;
+    ///
+    /// If the attempt succeeds, a new handle is returned and `handle` is invalidated.
+    unsafe fn try_shrink<T>(&mut self, _handle: Self::Handle<T>, _new_capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+        Err(AllocError)
+    }
 }
 
 //  Are MultiRangeStorage<T> and MultiResizableRangeStorage<T> necessary?
+
+//
+//  Implementations of Capacity.
+//
+
+impl Capacity for usize {
+    fn max() -> usize { usize::MAX }
+
+    fn from_usize(capacity: usize) -> Option<Self> { Some(capacity) }
+
+    fn into_usize(self) -> usize { self }
+}
+
+impl Capacity for u8 {
+    fn max() -> Self { u8::MAX }
+
+    fn from_usize(capacity: usize) -> Option<Self> { capacity.try_into().ok() }
+
+    fn into_usize(self) -> usize { self as usize }
+}
+
+impl Capacity for u16 {
+    fn max() -> Self { u16::MAX }
+
+    fn from_usize(capacity: usize) -> Option<Self> { capacity.try_into().ok() }
+
+    fn into_usize(self) -> usize { self as usize }
+}
+
+#[cfg(any(target_pointer_width = "32", target_pointer_width = "64"))]
+impl Capacity for u32 {
+    fn max() -> Self { u32::MAX }
+
+    fn from_usize(capacity: usize) -> Option<Self> { capacity.try_into().ok() }
+
+    fn into_usize(self)-> usize { self as usize }
+}

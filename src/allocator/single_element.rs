@@ -1,13 +1,13 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::Layout, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
-use alloc::alloc::{Allocator, Global};
+use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
+use alloc::alloc::Global;
 
 use rfc2580::Pointee;
 
 use crate::traits::SingleElementStorage;
 
-/// Generic inline SingleElementStorage.
+/// Generic allocator-based SingleElementStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
 pub struct SingleElement<A: Allocator = Global> {
@@ -40,7 +40,7 @@ impl<A: Allocator> SingleElementStorage for SingleElement<A> {
         }
     }
 
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `element` points to a valid value.
         let layout = Layout::for_value(handle.as_ref());
@@ -130,4 +130,4 @@ fn coerce() {
     assert_eq!(1, allocator.deallocated());
 }
 
-}
+} // mod tests

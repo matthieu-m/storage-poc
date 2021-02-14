@@ -49,7 +49,7 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         Ok(handle)
     }
 
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be within range, as part of being valid.
         let slot = self.data.get_unchecked_mut(handle.0);

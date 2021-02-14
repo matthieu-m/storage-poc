@@ -42,7 +42,7 @@ impl<A: Allocator> MultiElementStorage for MultiElement<A> {
         }
     }
 
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is valid, and points to valid meta-data, if not valid data.
         let layout = Layout::for_value_raw(handle.as_ptr() as *const T);

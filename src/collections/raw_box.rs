@@ -310,7 +310,7 @@ fn slice_failure() {
 
 /*
 
-FIXME: ICE...
+//FIXME: ICE...
 
 #[test]
 fn slice_coerce() {

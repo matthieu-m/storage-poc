@@ -1,6 +1,6 @@
 //! Various utilities.
 
-use core::{alloc::Layout, fmt::{self, Debug}, marker::PhantomData, mem};
+use core::{alloc::{AllocError, Layout}, fmt::{self, Debug}, marker::PhantomData, mem};
 
 #[cfg(all(test, feature = "alloc"))]
 pub(crate) use test::*;
@@ -21,21 +21,28 @@ impl<T: ?Sized> Default for PhantomInvariant<T> {
 /// Validates that the layout of `storage` is sufficient to accomodate an instance of `T`.
 ///
 /// Return `Ok` on success, and `Err` on failure.
-pub fn validate_layout<T, Storage>() -> Result<(), ()> {
+pub fn validate_layout<T, Storage>() -> Result<(), AllocError> {
     validate_layout_for::<Storage>(Layout::new::<T>())
+}
+
+/// Validates that the layout of `storage` is sufficient to accomodate an instance of `T`.
+///
+/// Return `Ok` on success, and `Err` on failure.
+pub fn validate_array_layout<T, Storage>(capacity: usize) -> Result<(), AllocError> {
+    validate_layout_for::<Storage>(Layout::array::<T>(capacity).map_err(|_| AllocError)?)
 }
 
 /// Validates that the layout of `storage` is sufficient for `layout`.
 ///
 /// Return `Ok` on success, and `Err` on failure.
-pub fn validate_layout_for<Storage>(layout: Layout) -> Result<(), ()> {
+pub fn validate_layout_for<Storage>(layout: Layout) -> Result<(), AllocError> {
     let validated_size = layout.size() <= mem::size_of::<Storage>();
     let validated_alignment = layout.align() <= mem::align_of::<Storage>();
 
     if validated_size && validated_alignment {
         Ok(())
     } else {
-        Err(())
+        Err(AllocError)
     }
 }
 

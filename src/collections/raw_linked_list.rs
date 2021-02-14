@@ -1,6 +1,4 @@
 //! Proof-of-Concept implementation of a LinkedList parameterized by a Storage.
-//!
-//! Ideally, GAT would be used with a storage builder to hide the implementation detail that is Node.
 
 use core::{fmt::{self, Debug}, marker::PhantomData, mem::MaybeUninit, ptr};
 
@@ -59,7 +57,7 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
             ptr::copy_nonoverlapping(self.storage.get(handle).as_ptr() as *const _, node.as_mut_ptr(), 1);
 
             let node = node.assume_init();
-            self.storage.forget(handle);
+            self.storage.release(handle);
 
             self.next = node.next;
             node.element

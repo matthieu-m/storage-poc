@@ -14,7 +14,7 @@ pub struct SingleElement<S> {
 }
 
 impl<S> SingleElement<S> {
-    /// Attempts to create an instance of SingleElement.
+    /// Creates an instance of SingleElement.
     pub fn new() -> Self { Self { data: MaybeUninit::uninit(), } }
 }
 
@@ -37,7 +37,7 @@ impl<S> SingleElementStorage for SingleElement<S> {
         Ok(SingleElementHandle(meta))
     }
 
-    unsafe fn forget<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
+    unsafe fn release<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         let pointer: NonNull<u8> = NonNull::from(&self.data).cast();
