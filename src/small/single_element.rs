@@ -182,13 +182,7 @@ fn create_insufficient_alignment() {
 }
 
 #[test]
-fn create_unsize_inline_success() {
-    let mut storage = SingleElement::<u32, _>::new(NonAllocator);
-    storage.create([1u8, 2, 3]).unwrap();
-}
-
-#[test]
-fn create_unsize_allocated_success() {
+fn coerce_allocated() {
     let allocator = SpyAllocator::default();
 
     let mut storage = SingleElement::<u8, _>::new(allocator.clone());
@@ -205,4 +199,4 @@ fn create_unsize_allocated_success() {
     assert_eq!(1, allocator.deallocated());
 }
 
-}
+} // mod tests

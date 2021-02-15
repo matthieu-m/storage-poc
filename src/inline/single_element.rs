@@ -99,15 +99,30 @@ fn create_success() {
 }
 
 #[test]
-fn create_unsize_insufficient_size() {
+fn create_insufficient_size() {
     let mut storage = SingleElement::<u8>::new();
     storage.create([1u8, 2, 3]).unwrap_err();
 }
 
 #[test]
-fn create_unsize_insufficient_alignment() {
+fn create_insufficient_alignment() {
     let mut storage = SingleElement::<[u8; 32]>::new();
     storage.create([1u32]).unwrap_err();
 }
 
+#[test]
+fn coerce() {
+    let mut storage = SingleElement::<[u8; 32]>::new();
+
+    let handle = storage.create([1u8, 2u8]).unwrap();
+
+    //  Safety:
+    //  -   `handle` is valid.
+    let handle = unsafe { storage.coerce::<[u8], _>(handle) };
+
+    //  Safety:
+    //  -   `handle` is valid.
+    unsafe { storage.destroy(handle) };
 }
+
+} // mod tests

@@ -1,6 +1,6 @@
 //! Proof-of-Concept implementation of a Box parameterized by a Storage.
 
-use core::{fmt::{self, Debug}, marker::Unsize, ops::{CoerceUnsized, Deref, DerefMut}};
+use core::{fmt::{self, Debug}, marker::Unsize, mem::{self, ManuallyDrop}, ops::{CoerceUnsized, Deref, DerefMut}};
 
 use rfc2580::Pointee;
 
@@ -8,7 +8,7 @@ use crate::traits::SingleElementStorage;
 
 /// A PoC Box.
 pub struct RawBox<T: ?Sized + Pointee, S: SingleElementStorage> {
-    storage: S,
+    storage: ManuallyDrop<S>,
     handle: S::Handle<T>,
 }
 
@@ -16,22 +16,30 @@ impl<T: Pointee, S: SingleElementStorage> RawBox<T, S> {
     /// Creates an instance of Self, containing `value` stored in `storage`.
     pub fn new(value: T, mut storage: S) -> Result<Self, (T, S)> {
         match storage.create(value) {
-            Ok(handle) => Ok(RawBox { storage, handle }),
+            Ok(handle) => Ok(RawBox { storage: ManuallyDrop::new(storage), handle }),
             Err(value) => Err((value, storage)),
         }
     }
 }
 
 impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
-    /// Creates an instance of Self, containing `value` stored in `storage`.
-    pub fn new_unsize<V: Unsize<T>>(value: V, mut storage: S) -> Result<Self, (V, S)> {
-        match storage.create(value) {
-            Ok(handle) => Ok({
-                let handle = unsafe { storage.coerce::<T, _>(handle) };
-                RawBox { storage, handle }
-            }),
-            Err(value) => Err((value, storage)),
-        }
+    /// Coerces to another Box.
+    ///
+    /// A poor's man CoerceUnsized implementation, for now.
+    pub fn coerce<U: ?Sized>(mut self) -> RawBox<U, S>
+        where
+            T: Unsize<U>,
+    {
+        //  Safety:
+        //  -   `self.handle` is valid.
+        let handle = unsafe { self.storage.coerce::<U, _>(self.handle) };
+
+        //  Safety:
+        //  -   `self.storage` contains a valid instance.
+        let storage = unsafe { ManuallyDrop::take(&mut self.storage) };
+        mem::forget(self);
+
+        RawBox { storage: ManuallyDrop::new(storage), handle, }
     }
 }
 
@@ -107,7 +115,7 @@ fn sized_storage() {
 #[test]
 fn slice_storage() {
     let storage = SingleElement::<[u8; 4]>::new();
-    let mut boxed: RawBox<[u8], _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let mut boxed: RawBox<[u8], _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!([1u8, 2, 3], &*boxed);
 
@@ -119,7 +127,7 @@ fn slice_storage() {
 #[test]
 fn trait_storage() {
     let storage = SingleElement::<[u8; 4]>::new();
-    let boxed: RawBox<dyn Debug, _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let boxed: RawBox<dyn Debug, _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", boxed));
 }
@@ -176,7 +184,7 @@ fn sized_failure() {
 #[test]
 fn slice_inline() {
     let storage = SingleElement::<[u8; 4], _>::new(NonAllocator);
-    let mut boxed : RawBox<[u8], _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let mut boxed : RawBox<[u8], _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!([1u8, 2, 3], &*boxed);
 
@@ -190,7 +198,7 @@ fn slice_allocated() {
     let allocator = SpyAllocator::default();
 
     let storage = SingleElement::<[u8; 2], _>::new(allocator.clone());
-    let mut boxed : RawBox<[u8], _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let mut boxed : RawBox<[u8], _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!([1u8, 2, 3], &*boxed);
     assert_eq!(1, allocator.allocated());
@@ -209,13 +217,13 @@ fn slice_allocated() {
 #[test]
 fn slice_failure() {
     let storage = SingleElement::<[u8; 2], _>::new(NonAllocator);
-    RawBox::<[u8], _>::new_unsize([1u8, 2, 3], storage).unwrap_err();
+    RawBox::new([1u8, 2, 3], storage).unwrap_err();
 }
 
 #[test]
 fn trait_inline() {
     let storage = SingleElement::<[u8; 4], _>::new(NonAllocator);
-    let boxed : RawBox<dyn Debug, _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let boxed : RawBox<dyn Debug, _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", boxed));
 }
@@ -225,7 +233,7 @@ fn trait_allocated() {
     let allocator = SpyAllocator::default();
 
     let storage = SingleElement::<[u8; 2], _>::new(allocator.clone());
-    let boxed : RawBox<dyn Debug, _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let boxed : RawBox<dyn Debug, _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", boxed));
     assert_eq!(1, allocator.allocated());
@@ -240,7 +248,7 @@ fn trait_allocated() {
 #[test]
 fn trait_failure() {
     let storage = SingleElement::<[u8; 2], _>::new(NonAllocator);
-    RawBox::<dyn Debug, _>::new_unsize([1u8, 2, 3], storage).unwrap_err();
+    RawBox::new([1u8, 2, 3], storage).unwrap_err();
 }
 
 } // mod test_small
@@ -286,7 +294,7 @@ fn slice_allocated() {
     let allocator = SpyAllocator::default();
 
     let storage = SingleElement::new(allocator.clone());
-    let mut boxed : RawBox<[u8], _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let mut boxed : RawBox<[u8], _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!([1u8, 2, 3], &*boxed);
     assert_eq!(1, allocator.allocated());
@@ -305,12 +313,8 @@ fn slice_allocated() {
 #[test]
 fn slice_failure() {
     let storage = SingleElement::new(NonAllocator);
-    RawBox::<[u8], _>::new_unsize([1u8, 2, 3], storage).unwrap_err();
+    RawBox::new([1u8, 2, 3], storage).unwrap_err();
 }
-
-/*
-
-//FIXME: ICE...
 
 #[test]
 fn slice_coerce() {
@@ -323,7 +327,9 @@ fn slice_coerce() {
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    let coerced : RawBox<[u8], _> = boxed;
+    //  FIXME: ICE...
+    //  let coerced : RawBox<[u8], _> = boxed;
+    let coerced : RawBox<[u8], _> = boxed.coerce();
 
     assert_eq!([1u8, 2, 3], *coerced);
 
@@ -333,14 +339,12 @@ fn slice_coerce() {
     assert_eq!(1, allocator.deallocated());
 }
 
-*/
-
 #[test]
 fn trait_allocated() {
     let allocator = SpyAllocator::default();
 
     let storage = SingleElement::new(allocator.clone());
-    let boxed : RawBox<dyn Debug, _> = RawBox::new_unsize([1u8, 2, 3], storage).unwrap();
+    let boxed : RawBox<dyn Debug, _> = RawBox::new([1u8, 2, 3], storage).unwrap().coerce();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", boxed));
     assert_eq!(1, allocator.allocated());
@@ -355,12 +359,8 @@ fn trait_allocated() {
 #[test]
 fn trait_failure() {
     let storage = SingleElement::new(NonAllocator);
-    RawBox::<dyn Debug, _>::new_unsize([1u8, 2, 3], storage).unwrap_err();
+    RawBox::new([1u8, 2, 3], storage).unwrap_err();
 }
-
-/*
-
-//FIXME: ICE
 
 #[test]
 fn trait_coerce() {
@@ -373,7 +373,9 @@ fn trait_coerce() {
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    let coerced : RawBox<dyn Debug, _> = boxed;
+    //  FIXME: ICE
+    //  let coerced : RawBox<dyn Debug, _> = boxed;
+    let coerced : RawBox<dyn Debug, _> = boxed.coerce();
 
     assert_eq!("RawBox{ [1, 2, 3] }", format!("{:?}", coerced));
 
@@ -382,7 +384,5 @@ fn trait_coerce() {
     assert_eq!(1, allocator.allocated());
     assert_eq!(1, allocator.deallocated());
 }
-
-*/
 
 } // mod test_allocator
