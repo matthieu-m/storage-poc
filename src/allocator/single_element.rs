@@ -5,7 +5,7 @@ use alloc::alloc::Global;
 
 use rfc2580::Pointee;
 
-use crate::traits::SingleElementStorage;
+use crate::traits::{ElementStorage, SingleElementStorage};
 
 /// Generic allocator-based SingleElementStorage.
 ///
@@ -19,26 +19,8 @@ impl<A: Allocator> SingleElement<A> {
     pub fn new(allocator: A) -> Self { Self { allocator } }
 }
 
-impl<A: Allocator> SingleElementStorage for SingleElement<A> {
+impl<A: Allocator> ElementStorage for SingleElement<A> {
     type Handle<T: ?Sized + Pointee> = NonNull<T>;
-
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
-            //  Safety:
-            //  -   `slice` is initialized.
-            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
-
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(pointer, value) }; 
-
-            //  Safety:
-            //  -   `pointer` is not null.
-            Ok(unsafe { NonNull::new_unchecked(pointer) })
-        } else {
-            Err(value)
-        }
-    }
 
     unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
@@ -55,6 +37,26 @@ impl<A: Allocator> SingleElementStorage for SingleElement<A> {
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         handle
+    }
+}
+
+impl<A: Allocator> SingleElementStorage for SingleElement<A> {
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
+        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
+            //  Safety:
+            //  -   `slice` is initialized.
+            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
+
+            //  Safety:
+            //  -   `pointer` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(pointer, value) }; 
+
+            //  Safety:
+            //  -   `pointer` is not null.
+            Ok(unsafe { NonNull::new_unchecked(pointer) })
+        } else {
+            Err(value)
+        }
     }
 }
 

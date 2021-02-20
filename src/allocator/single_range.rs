@@ -3,7 +3,7 @@
 use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, mem::MaybeUninit, ptr::NonNull};
 use alloc::alloc::Global;
 
-use crate::traits::SingleRangeStorage;
+use crate::traits::{RangeStorage, SingleRangeStorage};
 
 /// Generic allocator-based SingleRangeStorage.
 ///
@@ -17,23 +17,13 @@ impl<A: Allocator> SingleRange<A> {
     pub fn new(allocator: A) -> Self { Self { allocator, } }
 }
 
-impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
+impl<A: Allocator> RangeStorage for SingleRange<A> {
     /// The Handle used to obtain the range.
     type Handle<T> = NonNull<[MaybeUninit<T>]>;
 
     type Capacity = usize;
 
     fn maximum_capacity<T>(&self) -> Self::Capacity { usize::MAX }
-
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
-        if capacity == 0 {
-            return Ok(Self::dangling_handle());
-        }
-
-        let layout = Self::layout_for::<T>(capacity)?;
-        let pointer = self.allocator.allocate(layout)?;
-        Ok(Self::into_handle(pointer, capacity))
-    }
 
     unsafe fn release<T>(&mut self, handle: Self::Handle<T>) {
         if handle.len() > 0 {
@@ -82,6 +72,18 @@ impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
         let new_pointer = self.allocator.shrink(old_pointer, old_layout, new_layout)?;
 
         Ok(Self::into_handle(new_pointer, new_capacity))
+    }
+}
+
+impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
+    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+        if capacity == 0 {
+            return Ok(Self::dangling_handle());
+        }
+
+        let layout = Self::layout_for::<T>(capacity)?;
+        let pointer = self.allocator.allocate(layout)?;
+        Ok(Self::into_handle(pointer, capacity))
     }
 }
 

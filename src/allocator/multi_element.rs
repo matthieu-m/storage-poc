@@ -5,7 +5,7 @@ use alloc::alloc::{Allocator, Global};
 
 use rfc2580::Pointee;
 
-use crate::traits::MultiElementStorage;
+use crate::traits::{ElementStorage, MultiElementStorage};
 
 /// Generic allocator-based MultiElementStorage.
 ///
@@ -21,26 +21,8 @@ impl<A: Allocator> MultiElement<A> {
     }
 }
 
-impl<A: Allocator> MultiElementStorage for MultiElement<A> {
+impl<A: Allocator> ElementStorage for MultiElement<A> {
     type Handle<T: ?Sized + Pointee> = NonNull<T>;
-
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>  {
-        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
-            //  Safety:
-            //  -   `slice` is initialized.
-            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
-
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(pointer, value) }; 
-
-            //  Safety:
-            //  -   `pointer` is not null and valid.
-            Ok(NonNull::from(unsafe { &mut *pointer }))
-        } else {
-            Err(value)
-        }
-    }
 
     unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
@@ -59,6 +41,26 @@ impl<A: Allocator> MultiElementStorage for MultiElement<A> {
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         handle
+    }
+}
+
+impl<A: Allocator> MultiElementStorage for MultiElement<A> {
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>  {
+        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
+            //  Safety:
+            //  -   `slice` is initialized.
+            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
+
+            //  Safety:
+            //  -   `pointer` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(pointer, value) }; 
+
+            //  Safety:
+            //  -   `pointer` is not null and valid.
+            Ok(NonNull::from(unsafe { &mut *pointer }))
+        } else {
+            Err(value)
+        }
     }
 }
 

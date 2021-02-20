@@ -2,7 +2,7 @@
 
 use core::{alloc::AllocError, cmp, fmt::{self, Debug}, marker::PhantomData, mem::{self, MaybeUninit}, ptr::NonNull};
 
-use crate::{traits::{Capacity, SingleRangeStorage}, utils};
+use crate::{traits::{Capacity, RangeStorage, SingleRangeStorage}, utils};
 
 /// Generic inline SingleRangeStorage.
 ///
@@ -17,8 +17,7 @@ impl<C, S, const N: usize> SingleRange<C, S, N> {
     pub fn new() -> Self { Self { data: MaybeUninit::uninit_array(), _marker: PhantomData, } }
 }
 
-impl<C: Capacity, S, const N: usize> SingleRangeStorage for SingleRange<C, S, N> {
-    /// The Handle used to obtain the range.
+impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
     type Handle<T> = SingleRangeHandle<T>;
 
     type Capacity = C;
@@ -34,18 +33,20 @@ impl<C: Capacity, S, const N: usize> SingleRangeStorage for SingleRange<C, S, N>
             .expect("Cannot fail, since capacity <= C::max()")
     }
 
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
-        utils::validate_array_layout::<T, [MaybeUninit<S>; N]>(capacity.into_usize())
-            .map(|_| SingleRangeHandle::new())
-            .map_err(|_| AllocError)
-    }
-
     unsafe fn release<T>(&mut self, _handle: Self::Handle<T>) {}
 
     unsafe fn get<T>(&self, _handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         let pointer: NonNull<MaybeUninit<T>> = NonNull::from(&self.data).cast();
 
         NonNull::slice_from_raw_parts(pointer, N)
+    }
+}
+
+impl<C: Capacity, S, const N: usize> SingleRangeStorage for SingleRange<C, S, N> {
+    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+        utils::validate_array_layout::<T, [MaybeUninit<S>; N]>(capacity.into_usize())
+            .map(|_| SingleRangeHandle::new())
+            .map_err(|_| AllocError)
     }
 }
 

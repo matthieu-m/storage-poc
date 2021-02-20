@@ -4,7 +4,7 @@ use core::{fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{self, Non
 
 use rfc2580::{self, Pointee};
 
-use crate::{traits::SingleElementStorage, utils};
+use crate::{traits::{ElementStorage, SingleElementStorage}, utils};
 
 /// Generic inline SingleElementStorage.
 ///
@@ -18,24 +18,8 @@ impl<S> SingleElement<S> {
     pub fn new() -> Self { Self { data: MaybeUninit::uninit(), } }
 }
 
-impl<S> SingleElementStorage for SingleElement<S> {
+impl<S> ElementStorage for SingleElement<S> {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<T>;
-
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        if let Err(_) = utils::validate_layout::<T, S>() {
-            return Err(value);
-        }
-
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
-
-        //  Safety:
-        //  -   `self.data` points to an appropriate (layout-wise) memory area.
-        unsafe { ptr::write(self.data.as_mut_ptr() as *mut T, value) };
-
-        //  Safety:
-        //  -   There is a valid value stored, since just now.
-        Ok(SingleElementHandle(meta))
-    }
 
     unsafe fn release<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
@@ -53,6 +37,24 @@ impl<S> SingleElementStorage for SingleElement<S> {
         let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
 
         SingleElementHandle(meta)
+    }
+}
+
+impl<S> SingleElementStorage for SingleElement<S> {
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
+        if let Err(_) = utils::validate_layout::<T, S>() {
+            return Err(value);
+        }
+
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+
+        //  Safety:
+        //  -   `self.data` points to an appropriate (layout-wise) memory area.
+        unsafe { ptr::write(self.data.as_mut_ptr() as *mut T, value) };
+
+        //  Safety:
+        //  -   There is a valid value stored, since just now.
+        Ok(SingleElementHandle(meta))
     }
 }
 

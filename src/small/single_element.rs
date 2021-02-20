@@ -5,7 +5,7 @@ use alloc::alloc::{Allocator, Global};
 
 use rfc2580::{self, Pointee};
 
-use crate::{traits::SingleElementStorage, utils};
+use crate::{traits::{ElementStorage, SingleElementStorage}, utils};
 
 /// Generic inline SingleElementStorage.
 ///
@@ -23,40 +23,8 @@ impl<S, A: Allocator> SingleElement<S, A> {
     }
 }
 
-impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
+impl<S, A: Allocator> ElementStorage for SingleElement<S, A> {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<T>;
-
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
-
-        if utils::validate_layout::<T, S>().is_ok() {
-            let mut storage = MaybeUninit::<S>::uninit();
-
-            //  Safety:
-            //  -   `storage.as_mut_ptr()` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(storage.as_mut_ptr() as *mut T, value) };
-
-            self.inner = Inner::Inline(storage);
-
-            Ok(SingleElementHandle(meta))
-        } else if let Ok(mut storage) = self.allocator.allocate(Layout::for_value(&value)) {
-            let pointer = unsafe { storage.as_mut() }.as_mut_ptr() as *mut T;
-
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(pointer, value) };
-
-            //  Safety:
-            //  -   `pointer` is not null.
-            let pointer = unsafe { NonNull::new_unchecked(pointer) };
-
-            self.inner = Inner::Allocated(pointer.cast());
-
-            Ok(SingleElementHandle(meta))
-        } else {
-            Err(value)
-        }
-    }
 
     unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         let element = self.get(handle);
@@ -90,6 +58,40 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
         let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
 
         SingleElementHandle(meta)
+    }
+}
+
+impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+
+        if utils::validate_layout::<T, S>().is_ok() {
+            let mut storage = MaybeUninit::<S>::uninit();
+
+            //  Safety:
+            //  -   `storage.as_mut_ptr()` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(storage.as_mut_ptr() as *mut T, value) };
+
+            self.inner = Inner::Inline(storage);
+
+            Ok(SingleElementHandle(meta))
+        } else if let Ok(mut storage) = self.allocator.allocate(Layout::for_value(&value)) {
+            let pointer = unsafe { storage.as_mut() }.as_mut_ptr() as *mut T;
+
+            //  Safety:
+            //  -   `pointer` points to an appropriate (layout-wise) memory area.
+            unsafe { ptr::write(pointer, value) };
+
+            //  Safety:
+            //  -   `pointer` is not null.
+            let pointer = unsafe { NonNull::new_unchecked(pointer) };
+
+            self.inner = Inner::Allocated(pointer.cast());
+
+            Ok(SingleElementHandle(meta))
+        } else {
+            Err(value)
+        }
     }
 }
 
