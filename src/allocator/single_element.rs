@@ -1,20 +1,21 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
 use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
-use alloc::alloc::Global;
 
 use rfc2580::Pointee;
 
-use crate::traits::{ElementStorage, SingleElementStorage};
+use crate::{composite::Builder, traits::{ElementStorage, SingleElementStorage}};
+
+use super::AllocatorBuilder;
 
 /// Generic allocator-based SingleElementStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
-pub struct SingleElement<A: Allocator = Global> {
+pub struct SingleElement<A> {
     allocator: A,
 }
 
-impl<A: Allocator> SingleElement<A> {
+impl<A> SingleElement<A> {
     /// Creates an instance of SingleElement.
     pub fn new(allocator: A) -> Self { Self { allocator } }
 }
@@ -60,14 +61,20 @@ impl<A: Allocator> SingleElementStorage for SingleElement<A> {
     }
 }
 
-impl<A: Allocator + Default> Default for SingleElement<A> {
+impl<A> Builder<SingleElement<A>> for AllocatorBuilder<A> {
+    fn from_storage(storage: SingleElement<A>) -> Self { AllocatorBuilder(storage.allocator) }
+
+    fn into_storage(self) -> SingleElement<A> { SingleElement::new(self.0) }
+}
+
+impl<A: Default> Default for SingleElement<A> {
     fn default() -> Self {
         let allocator = A::default();
         Self::new(allocator)
     }
 }
 
-impl<A: Allocator> Debug for SingleElement<A> {
+impl<A> Debug for SingleElement<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "SingleElement")
     }

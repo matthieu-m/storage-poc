@@ -9,9 +9,5 @@ license = "MIT OR Apache-2.0"
 keywords = ["allocator", "collection", "experimental", "nightly", "storage"]
 categories = ["no-std"]
 
-[features]
-#   Activate usage of the alloc crate, which automatically implements the various storages for all allocators.
-alloc = []
-
 [dependencies]
 rfc2580 = "0.3.0"

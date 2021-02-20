@@ -1,24 +1,24 @@
 //! Simple implementation of `SingleRangeStorage`.
 
 use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, mem::MaybeUninit, ptr::NonNull};
-use alloc::alloc::Global;
 
-use crate::traits::{RangeStorage, SingleRangeStorage};
+use crate::{composite::Builder, traits::{RangeStorage, SingleRangeStorage}};
+
+use super::AllocatorBuilder;
 
 /// Generic allocator-based SingleRangeStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
-pub struct SingleRange<A: Allocator = Global> {
+pub struct SingleRange<A> {
     allocator: A,
 }
 
-impl<A: Allocator> SingleRange<A> {
+impl<A> SingleRange<A> {
     /// Creates an instance of SingleRange.
     pub fn new(allocator: A) -> Self { Self { allocator, } }
 }
 
 impl<A: Allocator> RangeStorage for SingleRange<A> {
-    /// The Handle used to obtain the range.
     type Handle<T> = NonNull<[MaybeUninit<T>]>;
 
     type Capacity = usize;
@@ -87,13 +87,25 @@ impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
     }
 }
 
-impl<A: Allocator> Debug for SingleRange<A> {
+impl<A: Allocator> Builder<SingleRange<A>> for A {
+    fn from_storage(storage: SingleRange<A>) -> A { storage.allocator }
+
+    fn into_storage(self) -> SingleRange<A> { SingleRange::new(self) }
+}
+
+impl<A> Builder<SingleRange<A>> for AllocatorBuilder<A> {
+    fn from_storage(storage: SingleRange<A>) -> Self { AllocatorBuilder(storage.allocator) }
+
+    fn into_storage(self) -> SingleRange<A> { SingleRange::new(self.0) }
+}
+
+impl<A> Debug for SingleRange<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "SingleRangeA")
     }
 }
 
-impl<A: Default + Allocator> Default for SingleRange<A> {
+impl<A: Default> Default for SingleRange<A> {
     fn default() -> Self { Self::new(A::default()) }
 }
 

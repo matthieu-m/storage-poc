@@ -250,11 +250,10 @@ fn try_push_failure() {
 
 } // mod test_inline
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod test_allocator {
 
 use core::mem;
-use alloc::alloc::Global;
 
 use crate::allocator::SingleRange;
 use crate::utils::{NonAllocator, SpyAllocator};
@@ -263,7 +262,7 @@ use super::*;
 
 #[test]
 fn size() {
-    type Storage = SingleRange<Global>;
+    type Storage = SingleRange<NonAllocator>;
     type Vec = RawVec<u8, Storage>;
 
     assert_eq!(mem::size_of::<usize>() * 3, mem::size_of::<Vec>());

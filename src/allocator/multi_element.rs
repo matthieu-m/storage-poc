@@ -1,20 +1,21 @@
-//! Simple implementation of `MultiElementStorage<T>`.
+//! Simple implementation of `MultiElementStorage`.
 
-use core::{alloc::Layout, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
-use alloc::alloc::{Allocator, Global};
+use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
 
 use rfc2580::Pointee;
 
-use crate::traits::{ElementStorage, MultiElementStorage};
+use crate::{composite::Builder, traits::{ElementStorage, MultiElementStorage}};
+
+use super::AllocatorBuilder;
 
 /// Generic allocator-based MultiElementStorage.
 ///
 /// `S` is the underlying storage, used to specify the size and alignment.
-pub struct MultiElement<A: Allocator = Global> {
+pub struct MultiElement<A> {
     allocator: A,
 }
 
-impl<A: Allocator> MultiElement<A> {
+impl<A> MultiElement<A> {
     /// Attempts to create an instance of SingleElement.
     pub fn new(allocator: A) -> Self {
         Self { allocator }
@@ -64,11 +65,17 @@ impl<A: Allocator> MultiElementStorage for MultiElement<A> {
     }
 }
 
-impl<A: Allocator + Default> Default for MultiElement<A> {
+impl<A> Builder<MultiElement<A>> for AllocatorBuilder<A> {
+    fn from_storage(storage: MultiElement<A>) -> Self { AllocatorBuilder(storage.allocator) }
+
+    fn into_storage(self) -> MultiElement<A> { MultiElement::new(self.0) }
+}
+
+impl<A: Default> Default for MultiElement<A> {
     fn default() -> Self { Self::new(A::default()) }
 }
 
-impl<A: Allocator> Debug for MultiElement<A> {
+impl<A> Debug for MultiElement<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "MultiElement")
     }

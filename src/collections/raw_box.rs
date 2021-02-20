@@ -134,7 +134,7 @@ fn trait_storage() {
 
 } // mod test_inline
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod test_small {
 
 use crate::small::SingleElement;
@@ -253,7 +253,7 @@ fn trait_failure() {
 
 } // mod test_small
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod test_allocator {
 
 use crate::allocator::SingleElement;

@@ -2,7 +2,7 @@
 
 use core::{alloc::{AllocError, Layout}, fmt::{self, Debug}, marker::PhantomData, mem};
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 pub(crate) use test::*;
 
 /// A marker to signal the absence of ownership of T, while requiring its invariance.
@@ -46,12 +46,12 @@ pub fn validate_layout_for<Storage>(layout: Layout) -> Result<(), AllocError> {
     }
 }
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod test {
 
 use core::{cell::Cell, ptr::NonNull};
 
-use alloc::{alloc::{Allocator, AllocError, Global, Layout}, rc::Rc};
+use std::{alloc::{Allocator, AllocError, Global, Layout}, rc::Rc};
 
 //  A NonAllocator never allocates.
 #[derive(Debug, Default)]
@@ -65,7 +65,6 @@ unsafe impl Allocator for NonAllocator {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SpyAllocator(Rc<(Cell<usize>, Cell<usize>)>);
 
-#[cfg(all(test, feature = "alloc"))]
 impl SpyAllocator {
     pub(crate) fn allocated(&self) -> usize { self.0.0.get() }
 

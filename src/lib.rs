@@ -23,17 +23,11 @@
 
 //! TODO
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
-pub mod collections;
-pub mod inline;
-pub mod traits;
-
-#[cfg(feature = "alloc")]
 pub mod allocator;
-
-#[cfg(feature = "alloc")]
+pub mod collections;
+pub mod composite;
+pub mod inline;
 pub mod small;
+pub mod traits;
 
 mod utils;

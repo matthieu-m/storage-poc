@@ -144,7 +144,7 @@ fn smoke_test() {
 
 } // mod test_inline
 
-#[cfg(all(test, feature = "alloc"))]
+#[cfg(test)]
 mod test_allocator {
 
 use crate::allocator::MultiElement;
