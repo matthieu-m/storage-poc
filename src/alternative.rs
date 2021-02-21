@@ -1,4 +1,4 @@
-//! Simple implementations of the composite storages, which aggregate two storages together.
+//! Simple implementations of a composite storages, which aggregate two storages together.
 //!
 //! This is an attempt at implementing a generic way to combining existing storages, to simplify implementating small
 //! storages for example.

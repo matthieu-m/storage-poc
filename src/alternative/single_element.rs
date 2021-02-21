@@ -1,4 +1,4 @@
-//! Composite implementation of `SingleElementStorage`.
+//! Alternative implementation of `SingleElementStorage`.
 
 use core::{fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::NonNull};
 

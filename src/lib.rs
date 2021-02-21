@@ -26,6 +26,7 @@
 pub mod allocator;
 pub mod alternative;
 pub mod collections;
+pub mod fallback;
 pub mod inline;
 pub mod small;
 pub mod traits;

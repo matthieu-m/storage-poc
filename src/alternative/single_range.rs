@@ -1,4 +1,4 @@
-//! Composite implementation of `SingleRangeStorage`.
+//! Alternative implementation of `SingleRangeStorage`.
 
 use core::{alloc::AllocError, cmp, fmt::{self, Debug}, hint, mem::{self, MaybeUninit}, ptr::{self, NonNull}};
 
