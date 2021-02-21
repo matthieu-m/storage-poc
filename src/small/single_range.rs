@@ -4,7 +4,7 @@ use core::{alloc::{Allocator, AllocError}, fmt::{self, Debug}, mem::MaybeUninit,
 
 use crate::{
     allocator::{self, AllocatorBuilder},
-    composite::{self, DefaultBuilder},
+    alternative::{self, DefaultBuilder},
     inline,
     traits::{RangeStorage, SingleRangeStorage},
 };
@@ -67,7 +67,7 @@ impl<S: Default, A: Default> Default for SingleRange<S, A> {
 //
 
 type Inner<S, A> =
-    composite::SingleRange<inline::SingleRange<usize, S, 1>, allocator::SingleRange<A>, DefaultBuilder, AllocatorBuilder<A>>;
+    alternative::SingleRange<inline::SingleRange<usize, S, 1>, allocator::SingleRange<A>, DefaultBuilder, AllocatorBuilder<A>>;
 
 #[cfg(test)]
 mod tests {

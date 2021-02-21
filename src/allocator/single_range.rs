@@ -2,7 +2,7 @@
 
 use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, mem::MaybeUninit, ptr::NonNull};
 
-use crate::{composite::Builder, traits::{RangeStorage, SingleRangeStorage}};
+use crate::{alternative::Builder, traits::{RangeStorage, SingleRangeStorage}};
 
 use super::AllocatorBuilder;
 

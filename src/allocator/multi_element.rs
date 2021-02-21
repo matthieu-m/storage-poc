@@ -4,7 +4,7 @@ use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::
 
 use rfc2580::Pointee;
 
-use crate::{composite::Builder, traits::{ElementStorage, MultiElementStorage}};
+use crate::{alternative::Builder, traits::{ElementStorage, MultiElementStorage}};
 
 use super::AllocatorBuilder;
 

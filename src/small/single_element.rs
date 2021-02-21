@@ -6,7 +6,7 @@ use rfc2580::Pointee;
 
 use crate::{
     allocator::{self, AllocatorBuilder},
-    composite::{self, DefaultBuilder},
+    alternative::{self, DefaultBuilder},
     inline,
     traits::{ElementStorage, SingleElementStorage},
 };
@@ -61,7 +61,7 @@ impl<S: Default, A: Default> Default for SingleElement<S, A> {
 //
 
 type Inner<S, A> =
-    composite::SingleElement<inline::SingleElement<S>, allocator::SingleElement<A>, DefaultBuilder, AllocatorBuilder<A>>;
+    alternative::SingleElement<inline::SingleElement<S>, allocator::SingleElement<A>, DefaultBuilder, AllocatorBuilder<A>>;
 
 #[cfg(test)]
 mod tests {

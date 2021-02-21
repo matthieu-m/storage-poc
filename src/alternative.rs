@@ -8,7 +8,7 @@
 //! -   Switching storages on the fly imply the ability to summon a storage from nothingness, hence the juggling of
 //!     builders, and the Poisoned state in case user provided functions panic.
 //! -   Switching handles, as storages switch, is easy for Single storages -- as the only handle is invalidated --
-//!     however there doesn't seem to be an elegant solution for Multi storages.
+//!     however there doesn't seem to be an elegant solution for Multi storages, therefore they are not implemented.
 
 mod builder;
 mod inner;
