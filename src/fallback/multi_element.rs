@@ -1,6 +1,6 @@
 //! Simple implementation of `MultiElementStorage`.
 
-use core::{fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
 
 use rfc2580::Pointee;
 
@@ -27,12 +27,12 @@ impl<F, S> ElementStorage for MultiElement<F, S>
 {
     type Handle<T: ?Sized + Pointee> = MultiElementHandle<F::Handle<T>, S::Handle<T>>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         use MultiElementHandle::*;
 
         match handle {
-            First(first) => self.first.release(first),
-            Second(second) => self.second.release(second),
+            First(first) => self.first.deallocate(first),
+            Second(second) => self.second.deallocate(second),
         }
     }
 
@@ -67,6 +67,14 @@ impl<F, S> MultiElementStorage for MultiElement<F, S>
             Ok(handle) => Ok(First(handle)),
             Err(value) => self.second.create(value).map(|handle| Second(handle)),
         }
+    }
+
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        use MultiElementHandle::*;
+        
+        self.first.allocate::<T>(meta)
+            .map(|handle| First(handle))
+            .or_else(|_| self.second.allocate::<T>(meta).map(|handle| Second(handle)))
     }
 }
 

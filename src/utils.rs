@@ -1,6 +1,8 @@
 //! Various utilities.
 
-use core::{alloc::{AllocError, Layout}, fmt::{self, Debug}, marker::PhantomData, mem};
+use core::{alloc::{AllocError, Layout}, fmt::{self, Debug}, marker::PhantomData, mem, ptr};
+
+use rfc2580::{self, MetaData, Pointee};
 
 #[cfg(test)]
 pub(crate) use test::*;
@@ -18,11 +20,20 @@ impl<T: ?Sized> Default for PhantomInvariant<T> {
     fn default() -> Self { Self(PhantomData) }
 }
 
+/// Computes the layout for a value with metadata `meta`.
+pub fn layout_of<T: ?Sized + Pointee>(meta: T::MetaData) -> Layout {
+    let pointer = meta.assemble(ptr::null_mut());
+
+    //  Safety:
+    //  -   `meta` is valid.
+    unsafe { Layout::for_value_raw(pointer as *const T) }
+}
+
 /// Validates that the layout of `storage` is sufficient to accomodate an instance of `T`.
 ///
 /// Return `Ok` on success, and `Err` on failure.
-pub fn validate_layout<T, Storage>() -> Result<(), AllocError> {
-    validate_layout_for::<Storage>(Layout::new::<T>())
+pub fn validate_layout<T: ?Sized + Pointee, Storage>(meta: T::MetaData) -> Result<(), AllocError> {
+    validate_layout_for::<Storage>(layout_of::<T>(meta))
 }
 
 /// Validates that the layout of `storage` is sufficient to accomodate an instance of `T`.

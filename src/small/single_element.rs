@@ -1,6 +1,6 @@
 //! Small implementation of `SingleElementStorage`.
 
-use core::{alloc::Allocator, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
+use core::{alloc::{Allocator, AllocError}, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
 
 use rfc2580::Pointee;
 
@@ -26,8 +26,8 @@ impl<S: Default, A> SingleElement<S, A> {
 impl<S, A: Allocator> ElementStorage for SingleElement<S, A> {
     type Handle<T: ?Sized + Pointee> = <Inner<S, A> as ElementStorage>::Handle<T>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
-        self.inner.release(handle)
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+        self.inner.deallocate(handle)
     }
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
@@ -42,6 +42,10 @@ impl<S, A: Allocator> ElementStorage for SingleElement<S, A> {
 impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
         self.inner.create(value)
+    }
+
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        self.inner.allocate(meta)
     }
 }
 

@@ -39,10 +39,10 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
         }
     }
 
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>) {
         match &mut self.0 {
-            Inner::First(ref mut first) => first.release(handle.first),
-            Inner::Second(ref mut second) => second.release(handle.second),
+            Inner::First(ref mut first) => first.deallocate(handle.first),
+            Inner::Second(ref mut second) => second.deallocate(handle.second),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
@@ -66,7 +66,7 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
                     Err(_) => {
                         if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
                             let (second, result) = first.transform(|first: &mut F, second: &mut S| {
-                                let new_handle = second.acquire(new_capacity)?;
+                                let new_handle = second.allocate(new_capacity)?;
                                 transfer(first.get(handle.first), second.get(new_handle));
                                 Ok(SingleRangeHandle { second: new_handle })
                             });
@@ -101,7 +101,7 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
 
                         if let Inner::Second(second) = mem::replace(&mut self.0, Inner::Poisoned) {
                             let (first, result) = second.transform(|second: &mut S, first: &mut F| {
-                                let new_handle = first.acquire(new_capacity)?;
+                                let new_handle = first.allocate(new_capacity)?;
                                 transfer(second.get(handle.second), first.get(new_handle));
                                 Ok(SingleRangeHandle { first: new_handle })
                             });
@@ -126,18 +126,18 @@ impl<F, S, FB, SB> SingleRangeStorage for SingleRange<F, S, FB, SB>
         FB: Builder<F>,
         SB: Builder<S>,
 {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
         match &mut self.0 {
             Inner::First(ref mut first) => {
                 let handle = into_first::<F, S>(capacity)
-                    .and_then(|capacity| first.acquire(capacity));
+                    .and_then(|capacity| first.allocate(capacity));
 
                 match handle {
                     Ok(first) => Ok(SingleRangeHandle{ first }),
                     Err(_) => {
                         if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
                             let (second, result) = first.transform(|_, second: &mut S| {
-                                second.acquire(capacity).map(|second| SingleRangeHandle { second })
+                                second.allocate(capacity).map(|second| SingleRangeHandle { second })
                             });
                             self.0 = Inner::Second(second);
                             return result;
@@ -149,7 +149,7 @@ impl<F, S, FB, SB> SingleRangeStorage for SingleRange<F, S, FB, SB>
                 }
             },
             Inner::Second(ref mut second) =>
-                second.acquire(capacity).map(|second| SingleRangeHandle{ second }),
+                second.allocate(capacity).map(|second| SingleRangeHandle{ second }),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }

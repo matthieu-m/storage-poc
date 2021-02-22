@@ -34,7 +34,7 @@ pub trait ElementStorage {
         //  -   `element` is valid.
         ptr::drop_in_place(element.as_ptr());
 
-        self.release(handle);
+        self.deallocate(handle);
     }
 
     /// Deallocate the memory without destroying the value within the storage.
@@ -43,7 +43,7 @@ pub trait ElementStorage {
     ///
     /// -   Assumes `handle` is valid, and the meta-data of the value it represents is valid.
     /// -   This invalidates the `handle`, and all of its copies.
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
 
     /// Gets a pointer to the storage to the element.
     ///
@@ -66,11 +66,33 @@ pub trait ElementStorage {
 ///
 /// Examples of use include: Box.
 pub trait SingleElementStorage : ElementStorage {
-
     /// Stores a `value` within the storage.
     ///
     /// If a value is already stored, it is overwritten and `drop` is not executed.
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>;
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+
+        if let Ok(handle) = self.allocate(meta) {
+            //  Safety:
+            //  -   `handle` is valid.
+            let pointer = unsafe { self.get(handle) };
+
+            //  Safety:
+            //  -   `pointer` points to a suitable memory area for `T`.
+            unsafe { ptr::write(pointer.as_ptr(), value) };
+
+            Ok(handle)
+        } else {
+            Err(value)
+        }
+    }
+
+    /// Attempts to allocate memory, and returns a handle to it.
+    ///
+    /// This may fail if memory cannot be allocated for it.
+    ///
+    /// If a value is already stored, the memory area may overlap.
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
 }
 
 /// A multi elements storage.
@@ -83,9 +105,31 @@ pub trait MultiElementStorage : ElementStorage{
     ///
     /// #   Safety
     ///
-    /// -   The Handle obtained is only valid until `self.destroy` or `self.release` is invoked on it, or one of its copies.
-    /// -   This may relocate all existing elements, which should be re-acquired through their handles.
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>;
+    /// -   The Handle obtained is only valid until `self.destroy` or `self.deallocate` is invoked on it, or one of its
+    ///     copies.
+    /// -   This may relocate all existing elements, pointers should be re-acquired through their handles.
+    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
+        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+
+        if let Ok(handle) = self.allocate(meta) {
+            //  Safety:
+            //  -   `handle` is valid.
+            let pointer = unsafe { self.get(handle) };
+
+            //  Safety:
+            //  -   `pointer` points to a suitable memory area for `T`.
+            unsafe { ptr::write(pointer.as_ptr(), value) };
+
+            Ok(handle)
+        } else {
+            Err(value)
+        }
+    }
+
+    /// Allocates memory, and returns a handle to it.
+    ///
+    /// This may fail if memory cannot be allocated for it.
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
 }
 
 //
@@ -128,7 +172,7 @@ pub trait RangeStorage {
     ///
     /// -   Assumes `handles` points to an allocated memory slot, makes no assumption about whether its value is valid.
     /// -   This invalidates `handle`, and all of its copies.
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>);
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>);
 
     /// Gets a pointer to the storage to the range of elements.
     ///
@@ -161,8 +205,8 @@ pub trait RangeStorage {
 pub trait SingleRangeStorage : RangeStorage {
     /// Allocates memory for a new `Handle`, large enough to at least accomodate the required `capacity`.
     ///
-    /// Does not `release` the current handles, nor drop their content. It merely invalidates them.
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
+    /// Does not `deallocate` the current handles, nor drop their content. It merely invalidates them.
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
 }
 
 /// A multi elements storage.
@@ -175,9 +219,10 @@ pub trait MultiRangeStorage : RangeStorage{
     ///
     /// #   Safety
     ///
-    /// -   The Handle obtained is only valid until `self.destroy` or `self.release` is invoked on it, or one of its copies.
+    /// -   The Handle obtained is only valid until `self.destroy` or `self.deallocate` is invoked on it, or one of its
+    ///     copies.
     /// -   This may relocate all existing ranges, which should be re-acquired through their handles.
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
 }
 
 

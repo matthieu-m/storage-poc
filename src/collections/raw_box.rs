@@ -1,8 +1,15 @@
 //! Proof-of-Concept implementation of a Box parameterized by a Storage.
 
-use core::{fmt::{self, Debug}, marker::Unsize, mem::{self, ManuallyDrop}, ops::{CoerceUnsized, Deref, DerefMut}};
+use core::{
+    alloc::Layout,
+    fmt::{self, Debug},
+    marker::Unsize,
+    mem::{self, ManuallyDrop},
+    ops::{CoerceUnsized, Deref, DerefMut},
+    ptr::{self, NonNull},
+};
 
-use rfc2580::Pointee;
+use rfc2580::{self, Pointee};
 
 use crate::traits::SingleElementStorage;
 
@@ -40,6 +47,40 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
         mem::forget(self);
 
         RawBox { storage: ManuallyDrop::new(storage), handle, }
+    }
+
+    /// Switch to another storage, if possible.
+    pub fn try_in<NS: SingleElementStorage>(this: Self, mut new_storage: NS) -> Result<RawBox<T, NS>, RawBox<T, S>> {
+        let layout = Layout::for_value(&*this);
+        let (meta, data) = rfc2580::into_non_null_parts(NonNull::from(&*this));
+
+        let new_handle = match new_storage.allocate::<T>(meta) {
+            Ok(new_handle) => new_handle,
+            Err(_) => return Err(this),
+        };
+
+        //  Safety:
+        //  -   `new_handle` is valid, fresh off the press.
+        let new_pointer = unsafe { new_storage.get(new_handle) };
+
+        let new_data = rfc2580::into_non_null_parts(new_pointer).1;
+
+        //  Safety:
+        //  -   `this` is safe to read.
+        //  -   the immediate `forget` avoids double-frees.
+        let old_handle = unsafe { ptr::read(&this.handle as *const _) };
+        let mut old_storage: ManuallyDrop<S> = unsafe { ptr::read(&this.storage as *const _) };
+        mem::forget(this);
+
+        //  Safety:
+        //  -   `new_data` is suitable for `layout`.
+        unsafe { ptr::copy_nonoverlapping(data.as_ptr() as *const u8, new_data.as_ptr(), layout.size()) };
+
+        //  Safety:
+        //  -   `old_handle` is valid.
+        unsafe { old_storage.deallocate(old_handle) };
+
+        Ok(RawBox{ handle: new_handle, storage: ManuallyDrop::new(new_storage) })
     }
 }
 
@@ -83,6 +124,10 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> Drop for RawBox<T, S> {
         //  Safety:
         //  -   There is a value stored, as per constructor's invariants.
         unsafe { self.storage.destroy(self.handle) };
+
+        //  Safety:
+        //  -   `self.storage` is alive.
+        unsafe { ManuallyDrop::drop(&mut self.storage) };
     }
 }
 
@@ -271,7 +316,6 @@ fn sized_allocated() {
     assert_eq!(1u32, *boxed);
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
-
 
     *boxed = 2;
 

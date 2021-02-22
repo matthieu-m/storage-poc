@@ -1,6 +1,6 @@
 //! Inline implementation of MultiElementStorage.
 
-use core::{fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{self, NonNull}};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::NonNull};
 
 use rfc2580::{self, Pointee};
 
@@ -24,7 +24,7 @@ impl<S, const N: usize> MultiElement<S, N> {
 impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
     type Handle<T: ?Sized + Pointee> = MultiElementHandle<T>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be within range, as part of being valid.
         let slot = self.data.get_unchecked_mut(handle.0);
@@ -58,12 +58,12 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
 }
 
 impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        if self.next == INVALID_NEXT || utils::validate_layout::<T, S>().is_err() {
-            return Err(value);
-        }
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        let _ = utils::validate_layout::<T, S>(meta)?;
 
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+        if self.next == INVALID_NEXT {
+            return Err(AllocError);
+        }
 
         //  Pop slot from linked list.
         let handle = MultiElementHandle(self.next, meta);
@@ -75,10 +75,6 @@ impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
         //  Safety:
         //  -   By invariant, if pointed it contains the "next" field.
         self.next = unsafe { slot.next };
-
-        //  Safety:
-        //  -   `value` is assumed to fit within `S`.
-        unsafe { ptr::write(slot.data.as_mut_ptr() as *mut T, value) };
 
         Ok(handle)
     }

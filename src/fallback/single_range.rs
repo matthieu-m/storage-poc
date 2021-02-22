@@ -40,12 +40,12 @@ impl<F, S> RangeStorage for SingleRange<F, S>
         }
     }
 
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>) {
         use SingleRangeHandle::*;
     
         match handle {
-            First(first) => self.first.release(first),
-            Second(second) => self.second.release(second),
+            First(first) => self.first.deallocate(first),
+            Second(second) => self.second.deallocate(second),
         }
     }
 
@@ -68,9 +68,9 @@ impl<F, S> RangeStorage for SingleRange<F, S>
                 match first_capacity.and_then(|new_capacity| self.first.try_grow(first, new_capacity)) {
                     Ok(handle) => Ok(First(handle)),
                     Err(_) => {
-                        let second = self.second.acquire(new_capacity)?;
+                        let second = self.second.allocate(new_capacity)?;
                         transfer(self.first.get(first), self.second.get(second));
-                        self.first.release(first);
+                        self.first.deallocate(first);
                         Ok(Second(second))
                     }
                 }
@@ -91,9 +91,9 @@ impl<F, S> RangeStorage for SingleRange<F, S>
                 self.first.try_shrink(first, first_capacity?)
                     .map(|handle| First(handle)),
             Second(second) =>
-                if let Ok(first) = first_capacity.and_then(|cap| self.first.acquire(cap)) {
+                if let Ok(first) = first_capacity.and_then(|cap| self.first.allocate(cap)) {
                     transfer(self.second.get(second), self.first.get(first));
-                    self.second.release(second);
+                    self.second.deallocate(second);
                     Ok(First(first))
                 } else {
                     self.second.try_shrink(second, new_capacity)
@@ -108,15 +108,15 @@ impl<F, S> SingleRangeStorage for SingleRange<F, S>
         F: SingleRangeStorage,
         S: SingleRangeStorage,
 {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
         use SingleRangeHandle::*;
     
         let first_capacity = into_first::<F, S>(capacity);
 
-        if let Ok(first) = first_capacity.and_then(|cap| self.first.acquire(cap)) {
+        if let Ok(first) = first_capacity.and_then(|cap| self.first.allocate(cap)) {
             Ok(First(first))
         } else {
-            self.second.acquire(capacity)
+            self.second.allocate(capacity)
                 .map(|handle| Second(handle))
         }
     }

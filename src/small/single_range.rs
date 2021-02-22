@@ -28,8 +28,8 @@ impl<S, A: Allocator> RangeStorage for SingleRange<S, A> {
 
     fn maximum_capacity<T>(&self) -> Self::Capacity { self.inner.maximum_capacity::<T>() }
 
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>) {
-        self.inner.release(handle)
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>) {
+        self.inner.deallocate(handle)
     }
 
     unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
@@ -46,8 +46,8 @@ impl<S, A: Allocator> RangeStorage for SingleRange<S, A> {
 }
 
 impl<S, A: Allocator> SingleRangeStorage for SingleRange<S, A> {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
-        self.inner.acquire(capacity)
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+        self.inner.allocate(capacity)
     }
 }
 
@@ -87,34 +87,34 @@ fn new_unconditional_success() {
 }
 
 #[test]
-fn acquire_zero_success() {
+fn allocate_zero_success() {
     let mut storage = SingleRange::<[u8; 2], _>::new(NonAllocator);
 
-    let handle = storage.acquire::<String>(0).unwrap();
+    let handle = storage.allocate::<String>(0).unwrap();
 
     assert_eq!(0, unsafe { storage.get(handle) }.len());
 }
 
 #[test]
-fn acquire_success() {
+fn allocate_success() {
     let allocator = SpyAllocator::default();
 
     let mut storage = SingleRange::<[u8; 2], _>::new(allocator.clone());
-    let handle = storage.acquire::<String>(1).unwrap();
+    let handle = storage.allocate::<String>(1).unwrap();
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.release(handle) };
+    unsafe { storage.deallocate(handle) };
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(1, allocator.deallocated());
 }
 
 #[test]
-fn acquire_failure() {
+fn allocate_failure() {
     let mut storage = SingleRange::<[u8; 2], _>::new(NonAllocator);
-    storage.acquire::<String>(1).unwrap_err();
+    storage.allocate::<String>(1).unwrap_err();
 }
 
 } // mod tests

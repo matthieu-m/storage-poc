@@ -33,7 +33,7 @@ impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
             .expect("Cannot fail, since capacity <= C::max()")
     }
 
-    unsafe fn release<T>(&mut self, _handle: Self::Handle<T>) {}
+    unsafe fn deallocate<T>(&mut self, _handle: Self::Handle<T>) {}
 
     unsafe fn get<T>(&self, _handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         let pointer: NonNull<MaybeUninit<T>> = NonNull::from(&self.data).cast();
@@ -43,7 +43,7 @@ impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
 }
 
 impl<C: Capacity, S, const N: usize> SingleRangeStorage for SingleRange<C, S, N> {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
         utils::validate_array_layout::<T, [MaybeUninit<S>; N]>(capacity.into_usize())
             .map(|_| SingleRangeHandle::new())
             .map_err(|_| AllocError)
@@ -91,21 +91,21 @@ fn new_unconditional_success() {
 }
 
 #[test]
-fn acquire_success() {
+fn allocate_success() {
     let mut storage = SingleRange::<u8, u8, 42>::new();
-    storage.acquire::<u8>(2).unwrap();
+    storage.allocate::<u8>(2).unwrap();
 }
 
 #[test]
-fn acquire_insufficient_size() {
+fn allocate_insufficient_size() {
     let mut storage = SingleRange::<u8, u8, 2>::new();
-    storage.acquire::<u8>(3).unwrap_err();
+    storage.allocate::<u8>(3).unwrap_err();
 }
 
 #[test]
-fn acquire_insufficient_alignment() {
+fn allocate_insufficient_alignment() {
     let mut storage = SingleRange::<u8, u8, 42>::new();
-    storage.acquire::<u32>(1).unwrap_err();
+    storage.allocate::<u32>(1).unwrap_err();
 }
 
 } // mod tests

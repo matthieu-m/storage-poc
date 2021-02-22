@@ -62,6 +62,8 @@ The `SingleElementStorage` is (stripped down):
 ```rust
 pub trait SingleElementStorage : ElementStorage {
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>;
+
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
 }
 
 pub trait ElementStorage {
@@ -69,7 +71,7 @@ pub trait ElementStorage {
 
     unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>);
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T>;
 }
@@ -80,14 +82,14 @@ The `Handle<T>` is the magic allowing inline storage: they are something to be c
 
 From there, the lifecyle is rather obvious: `create`, `get` a few times, and finally `destroy`.
 
-_Note: the `Pointee` type comes from RFC2580, as implemented in [rfc2580](https://github.com/matthieu-m/rfc2580), it's
-essentially a type to split a pointer into pointer-to-data and meta-data and put it back together later._
+_Note: the `Pointee` trait comes from RFC2580, as implemented in [rfc2580](https://github.com/matthieu-m/rfc2580), it's
+essentially a trait to split a pointer into pointer-to-data and meta-data and put it back together later._
 
 And the `SingleRangeStorage` is (stripped down):
 
 ```rust
 pub trait SingleRangeStorage : RangeStorage {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError>;
 }
 
 pub trait RangeStorage {
@@ -97,7 +99,7 @@ pub trait RangeStorage {
 
     fn maximum_capacity<T>(&self) -> Self::Capacity;
 
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>);
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>);
 
     unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]>;
 

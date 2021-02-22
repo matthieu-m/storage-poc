@@ -25,7 +25,7 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
 
     fn maximum_capacity<T>(&self) -> Self::Capacity { usize::MAX }
 
-    unsafe fn release<T>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T>(&mut self, handle: Self::Handle<T>) {
         if handle.len() > 0 {
             let layout = Self::layout_of(handle);
             let pointer = Self::from_handle(handle);
@@ -41,7 +41,7 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
         debug_assert!(handle.len() < new_capacity);
 
         if handle.len() == 0 {
-            return self.acquire::<T>(new_capacity);
+            return self.allocate::<T>(new_capacity);
         }
 
         let old_layout = Self::layout_of(handle);
@@ -76,7 +76,7 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
 }
 
 impl<A: Allocator> SingleRangeStorage for SingleRange<A> {
-    fn acquire<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T>(&mut self, capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
         if capacity == 0 {
             return Ok(Self::dangling_handle());
         }
@@ -158,34 +158,34 @@ fn new_unconditional_success() {
 }
 
 #[test]
-fn acquire_zero_success() {
+fn allocate_zero_success() {
     let mut storage = SingleRange::new(NonAllocator);
 
-    let slice = storage.acquire::<String>(0).unwrap();
+    let slice = storage.allocate::<String>(0).unwrap();
 
     assert_eq!(0, slice.len());
 }
 
 #[test]
-fn acquire_success() {
+fn allocate_success() {
     let allocator = SpyAllocator::default();
 
     let mut storage = SingleRange::new(allocator.clone());
-    let handle = storage.acquire::<String>(1).unwrap();
+    let handle = storage.allocate::<String>(1).unwrap();
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(0, allocator.deallocated());
 
-    unsafe { storage.release(handle) };
+    unsafe { storage.deallocate(handle) };
 
     assert_eq!(1, allocator.allocated());
     assert_eq!(1, allocator.deallocated());
 }
 
 #[test]
-fn acquire_failure() {
+fn allocate_failure() {
     let mut storage = SingleRange::new(NonAllocator);
-    storage.acquire::<String>(1).unwrap_err();
+    storage.allocate::<String>(1).unwrap_err();
 }
 
 } // mod tests

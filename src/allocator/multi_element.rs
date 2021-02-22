@@ -1,10 +1,10 @@
 //! Simple implementation of `MultiElementStorage`.
 
-use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
+use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
 
 use rfc2580::Pointee;
 
-use crate::{alternative::Builder, traits::{ElementStorage, MultiElementStorage}};
+use crate::{alternative::Builder, traits::{ElementStorage, MultiElementStorage}, utils};
 
 use super::AllocatorBuilder;
 
@@ -25,7 +25,7 @@ impl<A> MultiElement<A> {
 impl<A: Allocator> ElementStorage for MultiElement<A> {
     type Handle<T: ?Sized + Pointee> = NonNull<T>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is valid, and points to valid meta-data, if not valid data.
         let layout = Layout::for_value_raw(handle.as_ptr() as *const T);
@@ -46,22 +46,12 @@ impl<A: Allocator> ElementStorage for MultiElement<A> {
 }
 
 impl<A: Allocator> MultiElementStorage for MultiElement<A> {
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>  {
-        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
-            //  Safety:
-            //  -   `slice` is initialized.
-            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        let slice = self.allocator.allocate(utils::layout_of::<T>(meta))?;
 
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(pointer, value) }; 
+        let pointer: NonNull<u8> = slice.as_non_null_ptr().cast();
 
-            //  Safety:
-            //  -   `pointer` is not null and valid.
-            Ok(NonNull::from(unsafe { &mut *pointer }))
-        } else {
-            Err(value)
-        }
+        Ok(rfc2580::from_non_null_parts(meta, pointer))
     }
 }
 

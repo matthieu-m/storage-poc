@@ -1,10 +1,10 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::{Allocator, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{self, NonNull}};
+use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
 
-use rfc2580::Pointee;
+use rfc2580::{self, Pointee};
 
-use crate::{alternative::Builder, traits::{ElementStorage, SingleElementStorage}};
+use crate::{alternative::Builder, traits::{ElementStorage, SingleElementStorage}, utils};
 
 use super::AllocatorBuilder;
 
@@ -23,7 +23,7 @@ impl<A> SingleElement<A> {
 impl<A: Allocator> ElementStorage for SingleElement<A> {
     type Handle<T: ?Sized + Pointee> = NonNull<T>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `element` points to a valid value.
         let layout = Layout::for_value(handle.as_ref());
@@ -42,22 +42,12 @@ impl<A: Allocator> ElementStorage for SingleElement<A> {
 }
 
 impl<A: Allocator> SingleElementStorage for SingleElement<A> {
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        if let Ok(mut slice) = self.allocator.allocate(Layout::new::<T>()) {
-            //  Safety:
-            //  -   `slice` is initialized.
-            let pointer = unsafe { slice.as_mut() }.as_mut_ptr() as *mut T;
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        let slice = self.allocator.allocate(utils::layout_of::<T>(meta))?;
 
-            //  Safety:
-            //  -   `pointer` points to an appropriate (layout-wise) memory area.
-            unsafe { ptr::write(pointer, value) }; 
+        let pointer: NonNull<u8> = slice.as_non_null_ptr().cast();
 
-            //  Safety:
-            //  -   `pointer` is not null.
-            Ok(unsafe { NonNull::new_unchecked(pointer) })
-        } else {
-            Err(value)
-        }
+        Ok(rfc2580::from_non_null_parts(meta, pointer))
     }
 }
 

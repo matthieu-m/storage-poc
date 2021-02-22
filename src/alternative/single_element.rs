@@ -1,6 +1,6 @@
 //! Alternative implementation of `SingleElementStorage`.
 
-use core::{fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::NonNull};
+use core::{alloc::AllocError, fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::NonNull};
 
 use rfc2580::Pointee;
 
@@ -29,10 +29,10 @@ impl<F, S, FB, SB> ElementStorage for SingleElement<F, S, FB, SB>
 {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<F::Handle<T>, S::Handle<T>>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         match &mut self.0 {
-            Inner::First(ref mut first) => first.release(handle.first),
-            Inner::Second(ref mut second) => second.release(handle.second),
+            Inner::First(ref mut first) => first.deallocate(handle.first),
+            Inner::Second(ref mut second) => second.deallocate(handle.second),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
@@ -81,6 +81,30 @@ impl<F, S, FB, SB> SingleElementStorage for SingleElement<F, S, FB, SB>
                 },
             Inner::Second(ref mut second) =>
                 second.create(value).map(|second| SingleElementHandle { second }),
+            Inner::Poisoned => panic!("Poisoned"),
+        }
+    }
+
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        match &mut self.0 {
+            Inner::First(ref mut first) =>
+                match first.allocate(meta) {
+                    Ok(first) => Ok(SingleElementHandle { first }),
+                    Err(_) => {
+                        if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
+                            let (second, result) = first.transform(|_, second: &mut S| {
+                                second.allocate(meta).map(|second| SingleElementHandle { second })
+                            });
+                            self.0 = Inner::Second(second);
+                            return result;
+                        }
+                        //  Safety:
+                        //  -   self.0 was First before invoking replace, hence replace returns First.
+                        unsafe { hint::unreachable_unchecked() };
+                    },
+                },
+            Inner::Second(ref mut second) =>
+                second.allocate(meta).map(|second| SingleElementHandle { second }),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }

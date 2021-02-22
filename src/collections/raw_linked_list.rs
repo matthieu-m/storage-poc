@@ -57,7 +57,7 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
             ptr::copy_nonoverlapping(self.storage.get(handle).as_ptr() as *const _, node.as_mut_ptr(), 1);
 
             let node = node.assume_init();
-            self.storage.release(handle);
+            self.storage.deallocate(handle);
 
             self.next = node.next;
             node.element

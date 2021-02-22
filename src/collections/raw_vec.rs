@@ -17,7 +17,7 @@ impl<T, S: SingleRangeStorage> RawVec<T, S> {
         let zero = Self::into_capacity(0);
 
         let len = zero;
-        let data = storage.acquire(zero).expect("Zero-capacity allocation should always succeed");
+        let data = storage.allocate(zero).expect("Zero-capacity allocation should always succeed");
 
         Self { len, data, storage, }
     }
@@ -140,7 +140,7 @@ impl<T, S: SingleRangeStorage> Drop for RawVec<T, S> {
 
         //  Safety:
         //  -   `self.data` is valid.
-        unsafe { self.storage.release(self.data) };
+        unsafe { self.storage.deallocate(self.data) };
     }
 }
 

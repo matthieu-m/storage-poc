@@ -1,6 +1,6 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{self, NonNull}};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::NonNull};
 
 use rfc2580::{self, Pointee};
 
@@ -21,7 +21,7 @@ impl<S> SingleElement<S> {
 impl<S> ElementStorage for SingleElement<S> {
     type Handle<T: ?Sized + Pointee> = SingleElementHandle<T>;
 
-    unsafe fn release<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
+    unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         let pointer: NonNull<u8> = NonNull::from(&self.data).cast();
@@ -41,19 +41,9 @@ impl<S> ElementStorage for SingleElement<S> {
 }
 
 impl<S> SingleElementStorage for SingleElement<S> {
-    fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        if let Err(_) = utils::validate_layout::<T, S>() {
-            return Err(value);
-        }
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+        let _ = utils::validate_layout::<T, S>(meta)?;
 
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
-
-        //  Safety:
-        //  -   `self.data` points to an appropriate (layout-wise) memory area.
-        unsafe { ptr::write(self.data.as_mut_ptr() as *mut T, value) };
-
-        //  Safety:
-        //  -   There is a valid value stored, since just now.
         Ok(SingleElementHandle(meta))
     }
 }
