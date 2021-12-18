@@ -11,9 +11,8 @@ use core::{
     fmt::{self, Debug},
     marker::Unsize,
     mem::MaybeUninit,
-    ptr::{self, NonNull},
+    ptr::{self, NonNull, Pointee},
 };
-use rfc2580::Pointee;
 
 use crate::traits::{
     Capacity, ElementStorage, MultiElementStorage, RangeStorage, SingleElementStorage,
@@ -87,7 +86,7 @@ where
 
     fn allocate<T: ?Sized + Pointee>(
         &mut self,
-        meta: T::MetaData,
+        meta: T::Metadata,
     ) -> Result<Self::Handle<T>, AllocError> {
         self.primary
             .allocate::<T>(meta)
@@ -114,7 +113,7 @@ where
 
     fn allocate<T: ?Sized + Pointee>(
         &mut self,
-        meta: T::MetaData,
+        meta: T::Metadata,
     ) -> Result<Self::Handle<T>, AllocError> {
         self.primary
             .allocate::<T>(meta)

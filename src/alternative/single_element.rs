@@ -1,8 +1,6 @@
 //! Alternative implementation of `SingleElementStorage`.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::NonNull};
-
-use rfc2580::Pointee;
+use core::{alloc::AllocError, fmt::{self, Debug}, hint, marker::Unsize, mem, ptr::{NonNull, Pointee}};
 
 use crate::traits::{ElementStorage, SingleElementStorage};
 
@@ -85,7 +83,7 @@ impl<F, S, FB, SB> SingleElementStorage for SingleElement<F, S, FB, SB>
         }
     }
 
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
         match &mut self.0 {
             Inner::First(ref mut first) =>
                 match first.allocate(meta) {

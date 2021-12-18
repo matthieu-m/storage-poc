@@ -1,8 +1,6 @@
 //! Simple implementation of `MultiElementStorage`.
 
-use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
-
-use rfc2580::Pointee;
+use core::{alloc::{Allocator, AllocError, Layout}, fmt::{self, Debug}, marker::Unsize, ptr::{NonNull, Pointee}};
 
 use crate::{alternative::Builder, traits::{ElementStorage, MultiElementStorage}, utils};
 
@@ -46,12 +44,12 @@ impl<A: Allocator> ElementStorage for MultiElement<A> {
 }
 
 impl<A: Allocator> MultiElementStorage for MultiElement<A> {
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
         let slice = self.allocator.allocate(utils::layout_of::<T>(meta))?;
 
-        let pointer: NonNull<u8> = slice.as_non_null_ptr().cast();
+        let pointer: NonNull<()> = slice.as_non_null_ptr().cast();
 
-        Ok(rfc2580::from_non_null_parts(meta, pointer))
+        Ok(NonNull::from_raw_parts(pointer, meta))
     }
 }
 

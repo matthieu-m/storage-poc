@@ -63,7 +63,7 @@ The `SingleElementStorage` is (stripped down):
 pub trait SingleElementStorage : ElementStorage {
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T>;
 
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError>;
 }
 
 pub trait ElementStorage {
@@ -81,9 +81,6 @@ The `Handle<T>` is the magic allowing inline storage: they are something to be c
 `storage.get(handle)`, but not a pointer themselves, and therefore supports relocations of the underlying storage.
 
 From there, the lifecyle is rather obvious: `create`, `get` a few times, and finally `destroy`.
-
-_Note: the `Pointee` trait comes from RFC2580, as implemented in [rfc2580](https://github.com/matthieu-m/rfc2580), it's
-essentially a trait to split a pointer into pointer-to-data and meta-data and put it back together later._
 
 And the `SingleRangeStorage` is (stripped down):
 
@@ -124,9 +121,8 @@ it up to the caller. This is necessary since `Vec` and `VecDeque` have different
 
 There is one blocker currently: the custom `Box` implementation is not coercible.
 
-`CoerceUnsized` and `Unsize` are locked-down, and the custom implementation of RFC2580 therefore cannot implement
-`CoerceUnsized` to be able to unsize `SizedMetadata<[u8; 3]>` into `SliceMetadata<[u8]>`. This in turn prevents `Box`
-from being coercible. Oops.
+`CoerceUnsized` and `Unsize` are locked-down, and `[u8; 3]::Metadata` does not coerce to `[u8]::Metadata` This in turn
+prevents `Box` from being coercible. Oops.
 
 For the purpose of this Proof-of-Concept, a stand-in `coerce` method has been added to the `ElementStorage` trait where
 the implementation is essentially to go from handle to pointer, let the compiler coerce it, and then go back to handle

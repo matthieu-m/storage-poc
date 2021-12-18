@@ -1,8 +1,6 @@
 //! Small implementation of `SingleElementStorage`.
 
-use core::{alloc::{Allocator, AllocError}, fmt::{self, Debug}, marker::Unsize, ptr::NonNull};
-
-use rfc2580::Pointee;
+use core::{alloc::{Allocator, AllocError}, fmt::{self, Debug}, marker::Unsize, ptr::{NonNull, Pointee}};
 
 use crate::{
     allocator::{self, AllocatorBuilder},
@@ -44,7 +42,7 @@ impl<S, A: Allocator> SingleElementStorage for SingleElement<S, A> {
         self.inner.create(value)
     }
 
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
         self.inner.allocate(meta)
     }
 }

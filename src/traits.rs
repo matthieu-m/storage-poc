@@ -1,8 +1,6 @@
 //! The various storages available.
 
-use core::{alloc::AllocError, convert::TryInto, marker::Unsize, mem::MaybeUninit, ptr::{self, NonNull}};
-
-use rfc2580::Pointee;
+use core::{alloc::AllocError, convert::TryInto, marker::Unsize, mem::MaybeUninit, ptr::{self, NonNull, Pointee}};
 
 //
 //  Element Storage
@@ -70,7 +68,7 @@ pub trait SingleElementStorage : ElementStorage {
     ///
     /// If a value is already stored, it is overwritten and `drop` is not executed.
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+        let meta = (&value as *const T).to_raw_parts().1;
 
         if let Ok(handle) = self.allocate(meta) {
             //  Safety:
@@ -92,7 +90,7 @@ pub trait SingleElementStorage : ElementStorage {
     /// This may fail if memory cannot be allocated for it.
     ///
     /// If a value is already stored, the memory area may overlap.
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError>;
 }
 
 /// A multi elements storage.
@@ -109,7 +107,7 @@ pub trait MultiElementStorage : ElementStorage{
     ///     copies.
     /// -   This may relocate all existing elements, pointers should be re-acquired through their handles.
     fn create<T: Pointee>(&mut self, value: T) -> Result<Self::Handle<T>, T> {
-        let meta = rfc2580::into_non_null_parts(NonNull::from(&value)).0;
+        let meta = (&value as *const T).to_raw_parts().1;
 
         if let Ok(handle) = self.allocate(meta) {
             //  Safety:
@@ -129,7 +127,7 @@ pub trait MultiElementStorage : ElementStorage{
     /// Allocates memory, and returns a handle to it.
     ///
     /// This may fail if memory cannot be allocated for it.
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError>;
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError>;
 }
 
 //

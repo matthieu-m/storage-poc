@@ -6,10 +6,8 @@ use core::{
     marker::Unsize,
     mem::{self, ManuallyDrop},
     ops::{CoerceUnsized, Deref, DerefMut},
-    ptr::{self, NonNull},
+    ptr::{self, NonNull, Pointee},
 };
-
-use rfc2580::{self, Pointee};
 
 use crate::traits::SingleElementStorage;
 
@@ -52,7 +50,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
     /// Switch to another storage, if possible.
     pub fn try_in<NS: SingleElementStorage>(this: Self, mut new_storage: NS) -> Result<RawBox<T, NS>, RawBox<T, S>> {
         let layout = Layout::for_value(&*this);
-        let (meta, data) = rfc2580::into_non_null_parts(NonNull::from(&*this));
+        let (data, meta) =  NonNull::from(&*this).to_raw_parts();
 
         let new_handle = match new_storage.allocate::<T>(meta) {
             Ok(new_handle) => new_handle,
@@ -63,7 +61,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
         //  -   `new_handle` is valid, fresh off the press.
         let new_pointer = unsafe { new_storage.get(new_handle) };
 
-        let new_data = rfc2580::into_non_null_parts(new_pointer).1;
+        let new_data = new_pointer.to_raw_parts().0;
 
         //  Safety:
         //  -   `this` is safe to read.
@@ -74,7 +72,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
 
         //  Safety:
         //  -   `new_data` is suitable for `layout`.
-        unsafe { ptr::copy_nonoverlapping(data.as_ptr() as *const u8, new_data.as_ptr(), layout.size()) };
+        unsafe { ptr::copy_nonoverlapping(data.as_ptr() as *const u8, new_data.as_ptr() as *mut u8, layout.size()) };
 
         //  Safety:
         //  -   `old_handle` is valid.

@@ -1,8 +1,6 @@
 //! Simple implementation of `SingleElementStorage<T>`.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::NonNull};
-
-use rfc2580::{self, Pointee};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{NonNull, Pointee}};
 
 use crate::{traits::{ElementStorage, SingleElementStorage}, utils};
 
@@ -24,9 +22,9 @@ impl<S> ElementStorage for SingleElement<S> {
     unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
     unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
-        let pointer: NonNull<u8> = NonNull::from(&self.data).cast();
+        let pointer: NonNull<()> = NonNull::from(&self.data).cast();
 
-        rfc2580::from_non_null_parts(handle.0, pointer)
+        NonNull::from_raw_parts(pointer, handle.0)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
@@ -34,14 +32,14 @@ impl<S> ElementStorage for SingleElement<S> {
         //  -   `handle` is assumed to be valid.
         let element = self.get(handle);
 
-        let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
+        let meta = (element.as_ptr() as *mut U).to_raw_parts().1;
 
         SingleElementHandle(meta)
     }
 }
 
 impl<S> SingleElementStorage for SingleElement<S> {
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
         let _ = utils::validate_layout::<T, S>(meta)?;
 
         Ok(SingleElementHandle(meta))
@@ -60,7 +58,7 @@ impl<S> Default for SingleElement<S> {
 
 
 /// Handle of SingleElementStorage.
-pub struct SingleElementHandle<T: ?Sized + Pointee>(T::MetaData);
+pub struct SingleElementHandle<T: ?Sized + Pointee>(T::Metadata);
 
 impl<T: ?Sized + Pointee> Clone for SingleElementHandle<T> {
     fn clone(&self) -> Self { *self }

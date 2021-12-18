@@ -8,6 +8,3 @@ repository = "https://github.com/matthieu-m/storage-poc"
 license = "MIT OR Apache-2.0"
 keywords = ["allocator", "collection", "experimental", "nightly", "storage"]
 categories = ["no-std"]
-
-[dependencies]
-rfc2580 = "0.3.0"

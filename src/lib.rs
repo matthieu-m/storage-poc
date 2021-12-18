@@ -3,6 +3,7 @@
 //  Language Features
 #![feature(coerce_unsized)]
 #![feature(generic_associated_types)]
+#![feature(ptr_metadata)]
 #![feature(unsize)]
 #![feature(untagged_unions)]
 
@@ -17,7 +18,6 @@
 #![feature(slice_ptr_len)]
 
 //  Lints
-#![allow(incomplete_features)]
 #![deny(missing_docs)]
 
 //! TODO

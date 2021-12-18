@@ -1,8 +1,6 @@
 //! Inline implementation of MultiElementStorage.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::NonNull};
-
-use rfc2580::{self, Pointee};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{NonNull, Pointee}};
 
 use crate::{traits::{ElementStorage, MultiElementStorage}, utils};
 
@@ -38,12 +36,12 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
         //  Safety:
         //  -   `handle` is assumed to be within range.
         let slot = self.data.get_unchecked(handle.0);
-    
-        let pointer: NonNull<u8> = NonNull::from(&slot.data).cast();
+
+        let pointer: NonNull<()> = NonNull::from(&slot.data).cast();
 
         //  Safety:
         //  -   `handle` is assumed to point to a valid element.
-        rfc2580::from_non_null_parts(handle.1, pointer)
+        NonNull::from_raw_parts(pointer, handle.1)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
@@ -51,14 +49,14 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
         //  -   `handle` is assumed to point to a valid element.
         let element = self.get(handle);
 
-        let meta = rfc2580::into_raw_parts(element.as_ptr() as *mut U).0;
+        let meta = (element.as_ptr() as *mut U).to_raw_parts().1;
 
         MultiElementHandle(handle.0, meta)
     }
 }
 
 impl<S, const N: usize> MultiElementStorage for MultiElement<S, N> {
-    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::MetaData) -> Result<Self::Handle<T>, AllocError> {
+    fn allocate<T: ?Sized + Pointee>(&mut self, meta: T::Metadata) -> Result<Self::Handle<T>, AllocError> {
         let _ = utils::validate_layout::<T, S>(meta)?;
 
         if self.next == INVALID_NEXT {
@@ -109,7 +107,7 @@ impl<S, const N: usize> Default for MultiElement<S, N> {
 }
 
 /// The Handle for MultiElements.
-pub struct MultiElementHandle<T: ?Sized + Pointee>(usize, T::MetaData);
+pub struct MultiElementHandle<T: ?Sized + Pointee>(usize, T::Metadata);
 
 impl<T: ?Sized + Pointee> Clone for MultiElementHandle<T> {
     fn clone(&self) -> Self { *self }

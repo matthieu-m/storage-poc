@@ -1,8 +1,6 @@
 //! Proof-of-Concept implementation of a LinkedList parameterized by a Storage.
 
-use core::{fmt::{self, Debug}, marker::PhantomData, mem::MaybeUninit, ptr};
-
-use rfc2580::Pointee;
+use core::{fmt::{self, Debug}, marker::PhantomData, mem::MaybeUninit, ptr::{self, Pointee}};
 
 use crate::traits::MultiElementStorage;
 
