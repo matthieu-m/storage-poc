@@ -28,8 +28,12 @@ impl<S, A: Allocator> ElementStorage for SingleElement<S, A> {
         self.inner.deallocate(handle)
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
-        self.inner.get(handle)
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+        self.inner.resolve(handle)
+    }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        self.inner.resolve_mut(handle)
     }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {

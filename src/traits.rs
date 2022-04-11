@@ -21,12 +21,12 @@ pub trait ElementStorage {
     /// #   Safety
     ///
     /// -   Assumes `handle` is valid, and the meta-data of the value it represents is valid.
-    /// -   This invalidates the value behind the `handle`, hence `get` or `coerce` are no longer safe to be called on
-    ///     either it or any of its copies.
+    /// -   This invalidates the value behind the `handle`, hence `resolve` or `coerce` are no longer safe to be called
+    ///     on either it or any of its copies.
     unsafe fn destroy<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) {
         //  Safety:
         //  -   `handle` is assumed to be valid.
-        let element = self.get(handle);
+        let element = self.resolve_mut(handle);
 
         //  Safety:
         //  -   `element` is valid.
@@ -48,8 +48,17 @@ pub trait ElementStorage {
     /// #   Safety
     ///
     /// -   Assumes that `handle` is valid.
-    /// -   The pointer is only valid as long as the storage is not moved.
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T>;
+    /// -   The pointer is only valid as long as the storage is not moved and the `handle` remains valid.
+    /// -   The pointer is only usable to create non-mutable references.
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T>;
+
+    /// Gets a pointer to the storage to the element.
+    ///
+    /// #   Safety
+    ///
+    /// -   Assumes that `handle` is valid.
+    /// -   The pointer is only valid as long as the storage is not moved and the `handle` remains valid.
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T>;
 
     /// Coerces the type of the handle.
     ///
@@ -73,7 +82,7 @@ pub trait SingleElementStorage : ElementStorage {
         if let Ok(handle) = self.allocate(meta) {
             //  Safety:
             //  -   `handle` is valid.
-            let pointer = unsafe { self.get(handle) };
+            let pointer = unsafe { self.resolve_mut(handle) };
 
             //  Safety:
             //  -   `pointer` points to a suitable memory area for `T`.
@@ -112,7 +121,7 @@ pub trait MultiElementStorage : ElementStorage{
         if let Ok(handle) = self.allocate(meta) {
             //  Safety:
             //  -   `handle` is valid.
-            let pointer = unsafe { self.get(handle) };
+            let pointer = unsafe { self.resolve_mut(handle) };
 
             //  Safety:
             //  -   `pointer` points to a suitable memory area for `T`.
@@ -179,8 +188,19 @@ pub trait RangeStorage {
     /// #   Safety
     ///
     /// -   Assumes that `handle` is valid, and was issued by this instance.
-    /// -   The pointer is only valid as long as the storage is not moved.
-    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]>;
+    /// -   The pointer is only valid as long as the storage is not moved and the `handle` remains valid.
+    /// -   The pointer is only usable to create non-mutable references.
+    unsafe fn resolve<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]>;
+
+    /// Gets a pointer to the storage to the range of elements.
+    ///
+    /// The pointer is only valid as long as the storage is not moved, or the range is not resized.
+    ///
+    /// #   Safety
+    ///
+    /// -   Assumes that `handle` is valid, and was issued by this instance.
+    /// -   The pointer is only valid as long as the storage is not moved and the `handle` remains valid.
+    unsafe fn resolve_mut<T>(&mut self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]>;
 
     /// Attempts to grow the internal storage to accomodate at least `new_capacity` elements in total.
     ///

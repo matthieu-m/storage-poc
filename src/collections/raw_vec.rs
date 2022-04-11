@@ -156,7 +156,7 @@ impl<T, S: SingleRangeStorage> RawVec<T, S> {
     fn raw_slice(&self) -> &[MaybeUninit<T>] {
         //  Safety:
         //  -   `self.data` is valid and points to valid data.
-        let range = unsafe { self.storage.get(self.data) };
+        let range = unsafe { self.storage.resolve(self.data) };
 
         //  Safety:
         //  -   `range` points to valid data.
@@ -167,7 +167,7 @@ impl<T, S: SingleRangeStorage> RawVec<T, S> {
     fn raw_slice_mut(&mut self) -> &mut [MaybeUninit<T>] {
         //  Safety:
         //  -   `self.data` is valid and points to valid data.
-        let range = unsafe { self.storage.get(self.data) };
+        let range = unsafe { self.storage.resolve_mut(self.data) };
 
         //  Safety:
         //  -   `range` points to valid data.
@@ -309,5 +309,5 @@ fn try_push_failure() {
 
     assert_eq!(Err(42), vec.try_push(42));
 }
-    
+
 } // mod test_allocator

@@ -23,7 +23,7 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
     /// Returns a reference to the front element of the list, if any.
     pub fn front(&self) -> Option<&T> {
         self.next.map(|handle| unsafe {
-            let pointer = self.storage.get(handle).as_ptr();
+            let pointer = self.storage.resolve(handle).as_ptr();
             let node = &*pointer;
             &node.element
         })
@@ -31,8 +31,9 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
 
     /// Returns a reference to the front element of the list, if any.
     pub fn front_mut(&mut self) -> Option<&mut T> {
+        let storage = &mut self.storage;
         self.next.map(|handle| unsafe {
-            let pointer = self.storage.get(handle).as_ptr();
+            let pointer = storage.resolve_mut(handle).as_ptr();
             let node = &mut *pointer;
             &mut node.element
         })
@@ -52,7 +53,7 @@ impl<T: Pointee, S: MultiElementStorage> RawLinkedList<T, S> {
     pub fn pop(&mut self) -> Option<T> {
         self.next.take().map(|handle| unsafe {
             let mut node = MaybeUninit::<RawLinkedListNode<T, S>>::uninit();
-            ptr::copy_nonoverlapping(self.storage.get(handle).as_ptr() as *const _, node.as_mut_ptr(), 1);
+            ptr::copy_nonoverlapping(self.storage.resolve(handle).as_ptr() as *const _, node.as_mut_ptr(), 1);
 
             let node = node.assume_init();
             self.storage.deallocate(handle);
@@ -70,7 +71,7 @@ impl<T: Debug + Pointee, S: MultiElementStorage> Debug for RawLinkedList<T, S> {
         let mut next = self.next;
         if let Some(handle) = next {
             unsafe {
-                let element = self.storage.get(handle);
+                let element = self.storage.resolve(handle);
                 let node = element.as_ref();
 
                 write!(f, "{:?}", &node.element)?;
@@ -80,7 +81,7 @@ impl<T: Debug + Pointee, S: MultiElementStorage> Debug for RawLinkedList<T, S> {
 
         while let Some(handle) = next {
             unsafe {
-                let element = self.storage.get(handle);
+                let element = self.storage.resolve(handle);
                 let node = element.as_ref();
 
                 write!(f, ", {:?}", &node.element)?;

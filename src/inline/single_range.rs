@@ -35,8 +35,14 @@ impl<C: Capacity, S, const N: usize> RangeStorage for SingleRange<C, S, N> {
 
     unsafe fn deallocate<T>(&mut self, _handle: Self::Handle<T>) {}
 
-    unsafe fn get<T>(&self, _handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+    unsafe fn resolve<T>(&self, _handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         let pointer: NonNull<MaybeUninit<T>> = NonNull::from(&self.data).cast();
+
+        NonNull::slice_from_raw_parts(pointer, N)
+    }
+
+    unsafe fn resolve_mut<T>(&mut self, _handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        let pointer: NonNull<MaybeUninit<T>> = NonNull::from(&mut self.data).cast();
 
         NonNull::slice_from_raw_parts(pointer, N)
     }

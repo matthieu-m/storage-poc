@@ -32,8 +32,12 @@ impl<S, A: Allocator> RangeStorage for SingleRange<S, A> {
         self.inner.deallocate(handle)
     }
 
-    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
-        self.inner.get(handle)
+    unsafe fn resolve<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        self.inner.resolve(handle)
+    }
+
+    unsafe fn resolve_mut<T>(&mut self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        self.inner.resolve_mut(handle)
     }
 
     unsafe fn try_grow<T>(&mut self, handle: Self::Handle<T>, new_capacity: Self::Capacity) -> Result<Self::Handle<T>, AllocError> {
@@ -92,7 +96,7 @@ fn allocate_zero_success() {
 
     let handle = storage.allocate::<String>(0).unwrap();
 
-    assert_eq!(0, unsafe { storage.get(handle) }.len());
+    assert_eq!(0, unsafe { storage.resolve(handle) }.len());
 }
 
 #[test]

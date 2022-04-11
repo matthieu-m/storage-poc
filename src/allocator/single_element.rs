@@ -32,7 +32,9 @@ impl<A: Allocator> ElementStorage for SingleElement<A> {
         self.allocator.deallocate(handle.cast(), layout);
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> { handle }
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> { handle }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> { handle }
 
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         handle
@@ -119,7 +121,7 @@ fn coerce() {
 
     let handle = unsafe { storage.coerce::<[u8], _>(handle) };
 
-    assert_eq!([1, 2], unsafe { storage.get(handle).as_ref() });
+    assert_eq!([1, 2], unsafe { storage.resolve(handle).as_ref() });
 
     unsafe { storage.destroy(handle) };
 

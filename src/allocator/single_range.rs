@@ -33,7 +33,11 @@ impl<A: Allocator> RangeStorage for SingleRange<A> {
         }
     }
 
-    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+    unsafe fn resolve<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        handle
+    }
+
+    unsafe fn resolve_mut<T>(&mut self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         handle
     }
 

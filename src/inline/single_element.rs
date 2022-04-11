@@ -21,8 +21,14 @@ impl<S> ElementStorage for SingleElement<S> {
 
     unsafe fn deallocate<T: ?Sized + Pointee>(&mut self, _: Self::Handle<T>) {}
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         let pointer: NonNull<()> = NonNull::from(&self.data).cast();
+
+        NonNull::from_raw_parts(pointer, handle.0)
+    }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        let pointer: NonNull<()> = NonNull::from(&mut self.data).cast();
 
         NonNull::from_raw_parts(pointer, handle.0)
     }
@@ -30,7 +36,7 @@ impl<S> ElementStorage for SingleElement<S> {
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         //  Safety:
         //  -   `handle` is assumed to be valid.
-        let element = self.get(handle);
+        let element = self.resolve(handle);
 
         let meta = (element.as_ptr() as *mut U).to_raw_parts().1;
 

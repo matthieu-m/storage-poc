@@ -54,10 +54,17 @@ where
         }
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         match handle {
-            Primary(first) => self.primary.get(first),
-            Secondary(second) => self.secondary.get(second),
+            Primary(first) => self.primary.resolve(first),
+            Secondary(second) => self.secondary.resolve(second),
+        }
+    }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        match handle {
+            Primary(first) => self.primary.resolve_mut(first),
+            Secondary(second) => self.secondary.resolve_mut(second),
         }
     }
 
@@ -155,10 +162,17 @@ where
         }
     }
 
-    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+    unsafe fn resolve<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         match handle {
-            Primary(first) => self.primary.get(first),
-            Secondary(second) => self.secondary.get(second),
+            Primary(first) => self.primary.resolve(first),
+            Secondary(second) => self.secondary.resolve(second),
+        }
+    }
+
+    unsafe fn resolve_mut<T>(&mut self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        match handle {
+            Primary(first) => self.primary.resolve_mut(first),
+            Secondary(second) => self.secondary.resolve_mut(second),
         }
     }
 
@@ -177,7 +191,7 @@ where
                     Ok(handle) => Ok(Primary(handle)),
                     Err(_) => {
                         let second = self.secondary.allocate(new_capacity)?;
-                        transfer(self.primary.get(first), self.secondary.get(second));
+                        transfer(self.primary.resolve_mut(first), self.secondary.resolve_mut(second));
                         self.primary.deallocate(first);
                         Ok(Secondary(second))
                     }
@@ -204,7 +218,7 @@ where
                 .map(|handle| Primary(handle)),
             Secondary(second) => {
                 if let Ok(first) = first_capacity.and_then(|cap| self.primary.allocate(cap)) {
-                    transfer(self.secondary.get(second), self.primary.get(first));
+                    transfer(self.secondary.resolve_mut(second), self.primary.resolve_mut(first));
                     self.secondary.deallocate(second);
                     Ok(Primary(first))
                 } else {

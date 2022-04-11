@@ -34,7 +34,11 @@ impl<A: Allocator> ElementStorage for MultiElement<A> {
         self.allocator.deallocate(handle.cast(), layout);
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+        handle
+    }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
         handle
     }
 

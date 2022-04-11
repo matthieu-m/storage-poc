@@ -32,7 +32,7 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
         self.next = handle.0;
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         //  Safety:
         //  -   `handle` is assumed to be within range.
         let slot = self.data.get_unchecked(handle.0);
@@ -44,10 +44,22 @@ impl<S, const N: usize> ElementStorage for MultiElement<S, N> {
         NonNull::from_raw_parts(pointer, handle.1)
     }
 
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        //  Safety:
+        //  -   `handle` is assumed to be within range.
+        let slot = self.data.get_unchecked_mut(handle.0);
+
+        let pointer: NonNull<()> = NonNull::from(&mut slot.data).cast();
+
+        //  Safety:
+        //  -   `handle` is assumed to point to a valid element.
+        NonNull::from_raw_parts(pointer, handle.1)
+    }
+
     unsafe fn coerce<U: ?Sized + Pointee, T: ?Sized + Pointee + Unsize<U>>(&self, handle: Self::Handle<T>) -> Self::Handle<U> {
         //  Safety:
         //  -   `handle` is assumed to point to a valid element.
-        let element = self.get(handle);
+        let element = self.resolve(handle);
 
         let meta = (element.as_ptr() as *mut U).to_raw_parts().1;
 
@@ -185,7 +197,7 @@ fn new_unconditional_success() {
 fn create_success() {
     let mut storage = MultiElement::<u8, 5>::new();
     let handle = storage.create(4u8).unwrap();
-    let element = unsafe { storage.get(handle) };
+    let element = unsafe { storage.resolve(handle) };
 
     assert_eq!(4, unsafe { *element.as_ref() });
 }
@@ -209,7 +221,7 @@ fn create_insufficient_capacity() {
 
     for _ in 0..2 {
         let handle = storage.create(victim.clone()).unwrap();
-        let element = unsafe { storage.get(handle) };
+        let element = unsafe { storage.resolve(handle) };
         assert_eq!(&victim, unsafe { element.as_ref() });
 
         storage.create(victim.clone()).unwrap_err();
@@ -218,7 +230,7 @@ fn create_insufficient_capacity() {
 }
 
 #[test]
-fn get_accross_moves() {
+fn resolve_accross_moves() {
     let mut storage = MultiElement::<u8, 5>::new();
 
     let h1 = storage.create(1u8).unwrap();
@@ -227,9 +239,9 @@ fn get_accross_moves() {
 
     let storage = storage;
 
-    assert_eq!(1, unsafe { *storage.get(h1).as_ptr() });
-    assert_eq!(2, unsafe { *storage.get(h2).as_ptr() });
-    assert_eq!(3, unsafe { *storage.get(h3).as_ptr() });
+    assert_eq!(1, unsafe { *storage.resolve(h1).as_ref() });
+    assert_eq!(2, unsafe { *storage.resolve(h2).as_ref() });
+    assert_eq!(3, unsafe { *storage.resolve(h3).as_ref() });
 }
 
 #[test]
@@ -238,7 +250,7 @@ fn coerce_unsize() {
     let handle = storage.create([1, 2]).unwrap();
 
     let handle = unsafe { storage.coerce::<[u8], _>(handle) };
-    let element = unsafe { storage.get(handle) };
+    let element = unsafe { storage.resolve(handle) };
 
     assert_eq!(&[1, 2], unsafe { element.as_ref() });
 }

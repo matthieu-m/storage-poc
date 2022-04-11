@@ -35,10 +35,18 @@ impl<F, S, FB, SB> ElementStorage for SingleElement<F, S, FB, SB>
         }
     }
 
-    unsafe fn get<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
+    unsafe fn resolve<T: ?Sized + Pointee>(&self, handle: Self::Handle<T>) -> NonNull<T> {
         match &self.0 {
-            Inner::First(ref first) => first.get(handle.first),
-            Inner::Second(ref second) => second.get(handle.second),
+            Inner::First(ref first) => first.resolve(handle.first),
+            Inner::Second(ref second) => second.resolve(handle.second),
+            Inner::Poisoned => panic!("Poisoned"),
+        }
+    }
+
+    unsafe fn resolve_mut<T: ?Sized + Pointee>(&mut self, handle: Self::Handle<T>) -> NonNull<T> {
+        match &mut self.0 {
+            Inner::First(ref mut first) => first.resolve_mut(handle.first),
+            Inner::Second(ref mut second) => second.resolve_mut(handle.second),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }

@@ -47,10 +47,18 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
         }
     }
 
-    unsafe fn get<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+    unsafe fn resolve<T>(&self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
         match &self.0 {
-            Inner::First(ref first) => first.get(handle.first),
-            Inner::Second(ref second) => second.get(handle.second),
+            Inner::First(ref first) => first.resolve(handle.first),
+            Inner::Second(ref second) => second.resolve(handle.second),
+            Inner::Poisoned => panic!("Poisoned"),
+        }
+    }
+
+    unsafe fn resolve_mut<T>(&mut self, handle: Self::Handle<T>) -> NonNull<[MaybeUninit<T>]> {
+        match &mut self.0 {
+            Inner::First(ref mut first) => first.resolve_mut(handle.first),
+            Inner::Second(ref mut second) => second.resolve_mut(handle.second),
             Inner::Poisoned => panic!("Poisoned"),
         }
     }
@@ -67,7 +75,7 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
                         if let Inner::First(first) = mem::replace(&mut self.0, Inner::Poisoned) {
                             let (second, result) = first.transform(|first: &mut F, second: &mut S| {
                                 let new_handle = second.allocate(new_capacity)?;
-                                transfer(first.get(handle.first), second.get(new_handle));
+                                transfer(first.resolve_mut(handle.first), second.resolve_mut(new_handle));
                                 Ok(SingleRangeHandle { second: new_handle })
                             });
                             self.0 = Inner::Second(second);
@@ -102,7 +110,7 @@ impl<F, S, FB, SB> RangeStorage for SingleRange<F, S, FB, SB>
                         if let Inner::Second(second) = mem::replace(&mut self.0, Inner::Poisoned) {
                             let (first, result) = second.transform(|second: &mut S, first: &mut F| {
                                 let new_handle = first.allocate(new_capacity)?;
-                                transfer(second.get(handle.second), first.get(new_handle));
+                                transfer(second.resolve_mut(handle.second), first.resolve_mut(new_handle));
                                 Ok(SingleRangeHandle { first: new_handle })
                             });
                             self.0 = Inner::First(first);

@@ -59,7 +59,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> RawBox<T, S> {
 
         //  Safety:
         //  -   `new_handle` is valid, fresh off the press.
-        let new_pointer = unsafe { new_storage.get(new_handle) };
+        let new_pointer = unsafe { new_storage.resolve_mut(new_handle) };
 
         let new_data = new_pointer.to_raw_parts().0;
 
@@ -97,7 +97,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> Deref for RawBox<T, S> {
     fn deref(&self) -> &T {
         //  Safety:
         //  -   There is a value stored, as per constructor's invariants.
-        let pointer = unsafe { self.storage.get(self.handle).as_ptr() };
+        let pointer = unsafe { self.storage.resolve(self.handle).as_ptr() };
 
         //  Safety:
         //  -   `pointer` is pointing to a valid value.
@@ -109,7 +109,7 @@ impl<T: ?Sized + Pointee, S: SingleElementStorage> DerefMut for RawBox<T, S> {
     fn deref_mut(&mut self) -> &mut T {
         //  Safety:
         //  -   There is a value stored, as per constructor's invariants.
-        let pointer = unsafe { self.storage.get(self.handle).as_ptr() };
+        let pointer = unsafe { self.storage.resolve_mut(self.handle).as_ptr() };
 
         //  Safety:
         //  -   `pointer` is pointing to a valid value.

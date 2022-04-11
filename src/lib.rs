@@ -10,7 +10,6 @@
 //  Library Features
 #![feature(allocator_api)]
 #![feature(layout_for_ptr)]
-#![feature(maybe_uninit_extra)]
 #![feature(maybe_uninit_slice)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(nonnull_slice_from_raw_parts)]
