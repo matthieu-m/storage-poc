@@ -1,6 +1,6 @@
 //! Inline implementation of MultiElementStorage.
 
-use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::MaybeUninit, ptr::{NonNull, Pointee}};
+use core::{alloc::AllocError, fmt::{self, Debug}, marker::Unsize, mem::{ManuallyDrop, MaybeUninit}, ptr::{NonNull, Pointee}};
 
 use crate::{traits::{ElementStorage, MultiElementStorage}, utils};
 
@@ -168,7 +168,7 @@ impl<S, const N: usize> MultiElement<S, N> {
 
 union Overlay<S> {
     next: usize,
-    data: MaybeUninit<S>,
+    data: ManuallyDrop<MaybeUninit<S>>,
 }
 
 impl<S> Default for Overlay<S> {

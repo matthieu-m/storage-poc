@@ -2,10 +2,8 @@
 
 //  Language Features
 #![feature(coerce_unsized)]
-#![feature(generic_associated_types)]
 #![feature(ptr_metadata)]
 #![feature(unsize)]
-#![feature(untagged_unions)]
 
 //  Library Features
 #![feature(allocator_api)]
